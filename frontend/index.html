@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuantMind — Trading Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090e;--surf:#0d1117;--surf2:#111820;--surf3:#161e29;
+  --b1:#1a2636;--b2:#233044;
+  --green:#00d68f;--gdim:rgba(0,214,143,.1);--gglow:rgba(0,214,143,.2);
+  --blue:#3b82f6;--bdim:rgba(59,130,246,.1);
+  --red:#f43f5e;--rdim:rgba(244,63,94,.1);
+  --amber:#f59e0b;--purple:#a78bfa;
+  --t1:#dbe8f4;--t2:#7a94b0;--t3:#3d5269;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',sans-serif;
+  --r:8px;--rl:12px;
+}
+html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:14px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surf)}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}
+#root{height:100%}
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:200px;flex-shrink:0;background:var(--surf);border-right:1px solid var(--b1);display:flex;flex-direction:column;overflow-y:auto}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{flex-shrink:0;background:rgba(7,9,14,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--b1);padding:10px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.content{flex:1;overflow-y:auto;padding:20px}
+.logo-wrap{padding:18px 14px 14px;border-bottom:1px solid var(--b1)}
+.logo{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--t1)}
+.logo em{color:var(--green);font-style:normal}
+.logo-sub{font-family:var(--mono);font-size:8px;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-top:2px}
+.nav-sect{padding:10px 12px 3px;font-family:var(--mono);font-size:8px;color:var(--t3);letter-spacing:2px;text-transform:uppercase}
+.nav-btn{display:flex;align-items:center;gap:9px;padding:7px 12px;cursor:pointer;font-size:12px;color:var(--t2);transition:all .12s;border-left:2px solid transparent}
+.nav-btn:hover{color:var(--t1);background:var(--surf2)}
+.nav-btn.on{color:var(--green);border-left-color:var(--green);background:var(--gdim)}
+.nav-icon{font-size:13px;width:16px;text-align:center}
+.nav-tag{margin-left:auto;font-family:var(--mono);font-size:8px;padding:1px 5px;border-radius:2px;background:var(--surf3);color:var(--t3)}
+.sidebar-foot{margin-top:auto;padding:12px 14px;border-top:1px solid var(--b1);font-family:var(--mono);font-size:9px;color:var(--t3)}
+.api-row{display:flex;align-items:center;gap:5px;margin-bottom:2px}
+.dot{width:6px;height:6px;border-radius:50%}
+.online{background:var(--green);box-shadow:0 0 5px var(--gglow)}
+.offline{background:var(--red)}
+.tb-title{font-size:14px;font-weight:600;color:var(--t1);margin-right:auto}
+.tb-t{font-family:var(--mono);font-size:10px;font-weight:500;padding:5px 10px;border-radius:5px;cursor:pointer;border:1px solid var(--b2);background:var(--surf);color:var(--t2);transition:all .12s}
+.tb-t:hover{border-color:var(--green);color:var(--t1)}
+.tb-t.on{background:var(--gdim);border-color:var(--green);color:var(--green)}
+.tb-tsub{font-size:7px;color:inherit;opacity:.6;display:block;margin-top:1px}
+.sep{width:1px;height:20px;background:var(--b1);margin:0 2px;align-self:center}
+.period-grp{display:flex;gap:2px;background:var(--surf);border:1px solid var(--b1);border-radius:5px;padding:3px}
+.p-btn{font-family:var(--mono);font-size:9px;padding:3px 9px;border-radius:4px;cursor:pointer;border:none;background:none;color:var(--t3);transition:all .12s}
+.p-btn:hover{color:var(--t2)}
+.p-btn.on{background:var(--surf3);color:var(--green)}
+.grid{display:grid;gap:12px}
+.g4{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.g2{grid-template-columns:1fr 1fr}
+.g2l{grid-template-columns:2fr 1fr}
+.card{background:var(--surf);border:1px solid var(--b1);border-radius:var(--rl);padding:14px 16px}
+.card-title{font-size:12px;font-weight:600;color:var(--t1);margin-bottom:12px}
+.card-sub{font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:2px}
+.mval{font-family:var(--mono);font-size:22px;font-weight:700;display:block;line-height:1.2}
+.mlbl{font-size:10px;color:var(--t2);margin-top:3px}
+.mhint{font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:2px}
+.g{color:var(--green)}.r{color:var(--red)}.b{color:var(--blue)}.p{color:var(--purple)}.a{color:var(--amber)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:1px;color:var(--t3);padding:7px 9px;text-align:left;border-bottom:1px solid var(--b1);font-weight:500}
+.tbl td{padding:7px 9px;border-bottom:1px solid rgba(26,38,54,.5);font-size:11px;color:var(--t2)}
+.tbl tr:last-child td{border:none}
+.tbl tr:hover td{background:var(--surf2);color:var(--t1)}
+.tw{overflow-x:auto;border-radius:var(--r);border:1px solid var(--b1)}
+.sig{display:inline-flex;align-items:center;padding:2px 8px;border-radius:3px;font-family:var(--mono);font-size:9px;font-weight:700}
+.BUY{background:var(--gdim);color:var(--green);border:1px solid rgba(0,214,143,.2)}
+.SELL{background:var(--rdim);color:var(--red);border:1px solid rgba(244,63,94,.2)}
+.HOLD{background:var(--surf3);color:var(--t2);border:1px solid var(--b2)}
+.loader{display:flex;align-items:center;justify-content:center;height:200px;gap:8px;font-family:var(--mono);font-size:11px;color:var(--t3)}
+.spin{width:13px;height:13px;border:2px solid var(--b2);border-top-color:var(--green);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.banner{background:var(--rdim);border:1px solid rgba(244,63,94,.2);border-radius:var(--r);padding:9px 13px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--red);line-height:1.7}
+.banner code{background:rgba(244,63,94,.1);padding:1px 5px;border-radius:2px}
+.bok{background:var(--gdim);border-color:rgba(0,214,143,.2);color:var(--green)}
+.steps{display:flex;flex-direction:column;gap:10px}
+.step{display:flex;gap:12px;padding:12px 14px;background:var(--surf);border:1px solid var(--b1);border-radius:var(--rl)}
+.snum{width:26px;height:26px;border-radius:50%;background:var(--surf3);border:1px solid var(--b2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--t2);flex-shrink:0}
+.snum.ok{background:var(--gdim);border-color:var(--green);color:var(--green)}
+.stitle{font-weight:600;font-size:12px;color:var(--t1);margin-bottom:3px}
+.sdesc{font-size:11px;color:var(--t2);line-height:1.6;margin-bottom:6px}
+.cmd{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10px;background:var(--bg);border:1px solid var(--b1);border-radius:4px;padding:6px 9px;color:var(--green);cursor:pointer;transition:border-color .12s}
+.cmd:hover{border-color:var(--b2)}
+.cr{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--b1);font-size:11px}
+.cr:last-child{border:none}
+.fi{font-family:var(--mono);font-size:10px;padding:6px 10px;border-radius:5px;border:1px solid var(--b1);background:var(--surf);color:var(--t1);outline:none;width:200px}
+.fi:focus{border-color:var(--b2)}
+.exp{font-family:var(--mono);font-size:9px;padding:6px 12px;border-radius:4px;border:1px solid var(--b2);background:var(--surf);color:var(--green);cursor:pointer}
+.exp:hover{background:var(--gdim)}
+@media(max-width:900px){
+  .sidebar{width:52px}
+  .nav-btn span:not(.nav-icon){display:none}
+  .nav-sect,.logo-sub,.nav-tag{display:none}
+  .g2l{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .g4{grid-template-columns:1fr 1fr}
+  .g2{grid-template-columns:1fr}
+  .content{padding:12px}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect} = React;
+const {LineChart,Line,AreaChart,Area,ComposedChart,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,ReferenceLine} = Recharts;
+const API = "http://localhost:8000";
+const TICKERS=[
+  {s:"AAPL",n:"AAPL",f:"Apple",t:"stock"},{s:"TSLA",n:"TSLA",f:"Tesla",t:"stock"},
+  {s:"MSFT",n:"MSFT",f:"Microsoft",t:"stock"},{s:"GOOGL",n:"GOOGL",f:"Alphabet",t:"stock"},
+  {s:"AMZN",n:"AMZN",f:"Amazon",t:"stock"},{s:"NVDA",n:"NVDA",f:"NVIDIA",t:"stock"},
+  {s:"BTC-USD",n:"BTC",f:"Bitcoin",t:"crypto"},{s:"ETH-USD",n:"ETH",f:"Ethereum",t:"crypto"},
+];
+const PERIODS=["1M","3M","6M","1Y","2Y","5Y"];
+const PAGES=[{id:"guide",icon:"\u26a1",label:"Guide"},{id:"dashboard",icon:"\ud83d\udcc8",label:"Dashboard"},{id:"perf",icon:"\ud83c\udfc6",label:"Performance"},{id:"data",icon:"\ud83d\uddc4",label:"Donn\u00e9es"}];
+
+const Tip=({active,payload,label})=>{
+  if(!active||!payload?.length) return null;
+  return(<div style={{background:'#111820',border:'1px solid #1a2636',borderRadius:7,padding:'9px 12px',fontFamily:'JetBrains Mono,monospace',fontSize:10}}>
+    <div style={{color:'#3d5269',marginBottom:5,fontSize:9}}>{label}</div>
+    {payload.filter(p=>p.value!=null).map((p,i)=>(
+      <div key={i} style={{color:p.color,marginBottom:2}}>{p.name}: <strong>{typeof p.value==='number'?'$'+p.value.toFixed(2):p.value}</strong></div>
+    ))}
+  </div>);
+};
+
+function CopyCmd({cmd}){
+  const [ok,setOk]=useState(false);
+  return(<div className="cmd" onClick={()=>{navigator.clipboard.writeText(cmd);setOk(true);setTimeout(()=>setOk(false),2000)}}>
+    <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cmd}</span>
+    <span style={{fontFamily:'var(--mono)',fontSize:9,color:ok?'var(--green)':'var(--t3)',flexShrink:0,marginLeft:8}}>{ok?'\u2713 copi\u00e9':'copier'}</span>
+  </div>);
+}
+
+function GuidePage({api}){
+  const steps=[
+    {title:"Installer les d\u00e9pendances",desc:"TensorFlow, FastAPI, stable-baselines3, yfinance, pandas, scikit-learn.",cmd:"pip install -r requirements.txt"},
+    {title:"Charger le dataset Kaggle",desc:"Remplace le chemin par ton dossier Data/ contenant Stocks/ et ETFs/. yfinance compl\u00e8te avec donn\u00e9es r\u00e9centes.",cmd:'python train.py --ticker AAPL --data-path "chemin/vers/Data" --step data'},
+    {title:"Entra\u00eener le LSTM",desc:"LSTM 3 couches 128->64->32, EarlyStopping, ReduceLROnPlateau. Sauvegarde lstm_AAPL.h5 + scaler_AAPL.pkl.",cmd:"python train.py --ticker AAPL --step lstm"},
+    {title:"Entra\u00eener l'agent RL (PPO)",desc:"Environnement Gym custom + PPO 100k steps. Les pr\u00e9dictions LSTM sont features de l'agent (couplage LSTM\u2194RL).",cmd:"python train.py --ticker AAPL --step rl"},
+    {title:"Lancer l'API FastAPI",desc:"Charge tous les mod\u00e8les au d\u00e9marrage. Swagger sur localhost:8000/docs.",cmd:"uvicorn api:app --reload --port 8000"},
+    {title:"Ouvrir ce dashboard",desc:"Double-clique sur frontend/index.html.",cmd:"ouvre frontend/index.html dans ton navigateur"},
+  ];
+  return(<div>
+    <div style={{marginBottom:18}}>
+      <div style={{fontSize:17,fontWeight:600,marginBottom:4}}>Guide de d\u00e9marrage</div>
+      <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--t3)'}}>Suis ces \u00e9tapes dans l'ordre pour lancer QuantMind</div>
+    </div>
+    {api?<div className="banner bok" style={{marginBottom:16}}>\u2713 API connect\u00e9e \u2014 navigue vers Dashboard, Performance ou Donn\u00e9es</div>
+       :<div className="banner">\u26a0 API hors ligne \u2014 suis les \u00e9tapes ci-dessous<br/>Lance : <code>uvicorn api:app --reload --port 8000</code></div>}
+    <div className="card" style={{marginBottom:14}}>
+      <div className="card-title">Structure du dataset Kaggle</div>
+      <pre style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--t2)',lineHeight:1.9}}>{`  Data/\n  \u251c\u2500\u2500 Stocks/\n  \u2502   \u251c\u2500\u2500 aapl.us.txt\n  \u2502   \u251c\u2500\u2500 tsla.us.txt\n  \u2502   \u251c\u2500\u2500 msft.us.txt\n  \u2502   \u251c\u2500\u2500 googl.us.txt\n  \u2502   \u2514\u2500\u2500 nvda.us.txt\n  \u2514\u2500\u2500 ETFs/  (non utilis\u00e9s)`}</pre>
+      <div style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--t3)',marginTop:8}}>Format : Date,Open,High,Low,Close,Volume,OpenInt \u2014 Pas de base de donn\u00e9es n\u00e9cessaire (CSV uniquement)</div>
+    </div>
+    <div className="steps">
+      {steps.map((s,i)=>(
+        <div className="step" key={i}>
+          <div className={`snum${api&&i<5?' ok':''}`}>{api&&i<5?'\u2713':i+1}</div>
+          <div style={{flex:1}}>
+            <div className="stitle">{s.title}</div>
+            <div className="sdesc">{s.desc}</div>
+            <CopyCmd cmd={s.cmd}/>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>);
+}
+
+function DashboardPage({ticker,period,api}){
+  const [st,setSt]=useState({sum:null,chart:[],signals:[],loading:true});
+  useEffect(()=>{
+    if(!api){setSt(s=>({...s,loading:false}));return;}
+    setSt(s=>({...s,loading:true}));
+    Promise.all([
+      fetch(`${API}/data/summary?ticker=${ticker}`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/data?ticker=${ticker}&period=${period}`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/predict?ticker=${ticker}&days=14`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/strategy?ticker=${ticker}&period=${period}`).then(r=>r.json()).catch(()=>null),
+    ]).then(([sum,hist,pred,strat])=>{
+      const hp=(hist?.data||[]).map(d=>({date:d.date,close:d.Close,ema20:d.EMA_20,rsi:d.RSI,macd:d.MACD,macdSig:d.MACD_signal}));
+      const pm=Object.fromEntries((pred?.predictions||[]).map(p=>[p.date,p.price]));
+      const merged=hp.map(h=>({...h,predicted:pm[h.date]??null}));
+      const predOnly=(pred?.predictions||[]).filter(p=>!hp.find(h=>h.date===p.date)).map(p=>({date:p.date,predicted:p.price}));
+      const chart=[...merged,...predOnly].sort((a,b)=>a.date.localeCompare(b.date));
+      setSt({sum,chart,signals:strat?.signals?.slice(-50)||[],loading:false});
+    });
+  },[ticker,period,api]);
+
+  if(!api) return(<div className="banner">API hors ligne \u2014 voir onglet Guide</div>);
+  const {sum,chart,signals,loading}=st;
+  if(loading) return(<div className="loader"><div className="spin"/>Chargement...</div>);
+  const chg=sum?.change_pct, last=signals[signals.length-1];
+  const buys=signals.filter(s=>s.action==='BUY').length, sells=signals.filter(s=>s.action==='SELL').length;
+
+  return(<div>
+    <div className="grid g4" style={{marginBottom:14}}>
+      {[
+        {v:`$${sum?.price?.toFixed(2)??'\u2014'}`,l:'Prix actuel',h:`52s: ${sum?.high_52w??'\u2014'} / ${sum?.low_52w??'\u2014'}`,c:''},
+        {v:`${chg>=0?'+':''}${chg?.toFixed(2)??'\u2014'}%`,l:'Variation 1J',h:`$${sum?.change?.toFixed(2)??'\u2014'}`,c:chg>=0?'g':'r'},
+        {v:`${sum?.rsi?.toFixed(0)??'\u2014'}`,l:'RSI (14)',h:sum?.rsi>70?'Surachat':sum?.rsi<30?'Survendu':'Neutre',c:sum?.rsi>70?'r':sum?.rsi<30?'g':'b'},
+        {v:last?.action??'\u2014',l:'Signal RL actuel',h:last?.date??'\u2014',c:last?.action==='BUY'?'g':last?.action==='SELL'?'r':'b'},
+        {v:`$${sum?.ema_20?.toFixed(2)??'\u2014'}`,l:'EMA 20',h:'Moyenne mobile',c:'p'},
+        {v:`${buys}`,l:'Signaux BUY',h:`${sells} SELL \u00b7 ${signals.length-buys-sells} HOLD`,c:'g'},
+      ].map((m,i)=>(
+        <div className="card" key={i}>
+          <span className={`mval ${m.c}`}>{m.v}</span>
+          <div className="mlbl">{m.l}</div>
+          <div className="mhint">{m.h}</div>
+        </div>
+      ))}
+    </div>
+
+    <div className="card" style={{marginBottom:12}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,flexWrap:'wrap',gap:8}}>
+        <div>
+          <div className="card-title" style={{marginBottom:0}}>Prix r\u00e9el + Pr\u00e9diction LSTM</div>
+          <div className="card-sub">Historique {period} \u00b7 Pr\u00e9vision 14 jours</div>
+        </div>
+        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+          {[['#00d68f','Prix r\u00e9el'],['#3b82f6','EMA 20'],['#a78bfa','LSTM pr\u00e9dit']].map(([c,l])=>(
+            <div key={l} style={{display:'flex',alignItems:'center',gap:5,fontFamily:'var(--mono)',fontSize:9,color:'var(--t2)'}}>
+              <div style={{width:16,height:2,background:c,borderRadius:1}}/>{l}
+            </div>
+          ))}
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={250}>
+        <ComposedChart data={chart} margin={{top:5,right:8,left:0,bottom:5}}>
+          <defs>
+            <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#00d68f" stopOpacity={.1}/>
+              <stop offset="95%" stopColor="#00d68f" stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1a2636" vertical={false}/>
+          <XAxis dataKey="date" tick={{fontSize:8,fill:'#3d5269',fontFamily:'JetBrains Mono'}} tickFormatter={d=>d?.slice(5)} interval={Math.max(Math.floor(chart.length/7),1)} axisLine={false} tickLine={false}/>
+          <YAxis tick={{fontSize:8,fill:'#3d5269',fontFamily:'JetBrains Mono'}} domain={['auto','auto']} tickFormatter={v=>'$'+v.toFixed(0)} axisLine={false} tickLine={false} width={50}/>
+          <Tooltip content={<Tip/>}/>
+          <Area type="monotone" dataKey="close" stroke="#00d68f" fill="url(#cg)" strokeWidth={1.5} dot={false} name="Prix r\u00e9el" connectNulls={false}/>
+          <Line type="monotone" dataKey="ema20" stroke="#3b82f6" strokeWidth={1} dot={false} name="EMA 20" strokeOpacity={.5} connectNulls={false}/>
+          <Line type="monotone" dataKey="predicted" stroke="#a78bfa" strokeWidth={2} strokeDasharray="5 3" dot={false} name="Pr\u00e9dit LSTM" connectNulls={false}/>
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+
+    <div className="grid g2" style={{marginBottom:12}}>
+      <div className="card">
+        <div className="card-title" style={{marginBottom:10}}>RSI (14)</div>
+        <ResponsiveContainer width="100%" height={120}>
+          <LineChart data={chart.filter(d=>d.rsi!=null)} margin={{top:3,right:8,left:0,bottom:3}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1a2636" vertical={false}/>
+            <XAxis dataKey="date" tick={{fontSize:7,fill:'#3d5269',fontFamily:'JetBrains Mono'}} tickFormatter={d=>d?.slice(5)} interval={Math.max(Math.floor(chart.length/5),1)} axisLine={false} tickLine={false}/>
+            <YAxis domain={[0,100]} ticks={[30,50,70]} tick={{fontSize:7,fill:'#3d5269',fontFamily:'JetBrains Mono'}} axisLine={false} tickLine={false} width={24}/>
+            <Tooltip content={<Tip/>}/>
+            <ReferenceLine y={70} stroke="#f43f5e" strokeDasharray="3 2" strokeWidth={1}/>
+            <ReferenceLine y={30} stroke="#00d68f" strokeDasharray="3 2" strokeWidth={1}/>
+            <Line type="monotone" dataKey="rsi" stroke="#3b82f6" dot={false} strokeWidth={1.5} name="RSI"/>
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="card">
+        <div className="card-title" style={{marginBottom:10}}>MACD (12/26/9)</div>
+        <ResponsiveContainer width="100%" height={120}>
+          <ComposedChart data={chart.filter(d=>d.macd!=null)} margin={{top:3,right:8,left:0,bottom:3}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1a2636" vertical={false}/>
+            <XAxis dataKey="date" tick={{fontSize:7,fill:'#3d5269',fontFamily:'JetBrains Mono'}} tickFormatter={d=>d?.slice(5)} interval={Math.max(Math.floor(chart.length/5),1)} axisLine={false} tickLine={false}/>
+            <YAxis tick={{fontSize:7,fill:'#3d5269',fontFamily:'JetBrains Mono'}} axisLine={false} tickLine={false} width={34}/>
+            <Tooltip content={<Tip/>}/>
+            <ReferenceLine y={0} stroke="#233044" strokeWidth={1}/>
+            <Line type="monotone" dataKey="macd" stroke="#00d68f" dot={false} strokeWidth={1.5} name="MACD"/>
+            <Line type="monotone" dataKey="macdSig" stroke="#f59e0b" dot={false} strokeWidth={1} strokeDasharray="3 2" name="Signal"/>
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+
+    <div className="card">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:6}}>
+        <div>
+          <div className="card-title" style={{marginBottom:0}}>Signaux de l'agent RL</div>
+          <div className="card-sub">{signals.length} signaux g\u00e9n\u00e9r\u00e9s</div>
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          <span className="sig BUY">BUY {buys}</span>
+          <span className="sig SELL">SELL {sells}</span>
+          <span className="sig HOLD">HOLD {signals.length-buys-sells}</span>
+        </div>
+      </div>
+      <div className="tw">
+        <table className="tbl">
+          <thead><tr><th>Date</th><th>Action</th><th>Prix</th><th>RSI</th><th>MACD</th><th>Confiance</th></tr></thead>
+          <tbody>
+            {signals.slice().reverse().slice(0,20).map((s,i)=>(
+              <tr key={i}>
+                <td style={{fontFamily:'var(--mono)',fontSize:10}}>{s.date}</td>
+                <td><span className={`sig ${s.action}`}>{s.action}</span></td>
+                <td style={{fontFamily:'var(--mono)'}}>${s.price?.toFixed(2)}</td>
+                <td style={{fontFamily:'var(--mono)',color:s.rsi>70?'var(--red)':s.rsi<30?'var(--green)':'var(--t2)'}}>{s.rsi?.toFixed(1)}</td>
+                <td style={{fontFamily:'var(--mono)',color:s.macd>0?'var(--green)':'var(--red)',fontSize:10}}>{s.macd?.toFixed(4)}</td>
+                <td style={{fontFamily:'var(--mono)'}}>{(s.confidence*100).toFixed(0)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>);
+}
+
+function PerfPage({ticker,period,api}){
+  const [st,setSt]=useState({perf:null,port:[],loading:true});
+  useEffect(()=>{
+    if(!api){setSt(s=>({...s,loading:false}));return;}
+    setSt(s=>({...s,loading:true}));
+    Promise.all([
+      fetch(`${API}/performance?ticker=${ticker}`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/performance/portfolio?ticker=${ticker}&period=${period}`).then(r=>r.json()).catch(()=>null),
+    ]).then(([perf,port])=>setSt({perf,port:port?.data||[],loading:false}));
+  },[ticker,period,api]);
+
+  if(!api) return(<div className="banner">API hors ligne.</div>);
+  const {perf,port,loading}=st;
+  if(loading) return(<div className="loader"><div className="spin"/>Calcul...</div>);
+  const rl=perf?.rl_agent, bh=perf?.buy_and_hold;
+  const rows=[
+    {l:'Total Return (%)',rl:rl?.total_return,bh:bh?.total_return},
+    {l:'Sharpe Ratio',rl:rl?.sharpe_ratio,bh:bh?.sharpe_ratio},
+    {l:'Max Drawdown (%)',rl:rl?.max_drawdown,bh:bh?.max_drawdown},
+    {l:'Solde final ($10k)',rl:rl?.final_balance,bh:bh?.final_balance},
+    {l:'Win Rate (%)',rl:rl?.win_rate,bh:null},
+    {l:'Nb trades',rl:rl?.n_trades,bh:1},
+  ];
+
+  return(<div>
+    <div className="grid g2l" style={{marginBottom:14,gap:12}}>
+      <div className="card">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <div style={{fontFamily:'var(--mono)',fontSize:8,color:'var(--t3)',textTransform:'uppercase',letterSpacing:1}}>COMPARAISON</div>
+          <div style={{display:'flex',gap:14}}>
+            <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--green)'}}>\u25a0 RL</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--blue)'}}>\u25a0 Buy&Hold</span>
+          </div>
+        </div>
+        {rows.map((r,i)=>(
+          <div className="cr" key={i}>
+            <span style={{color:'var(--t2)'}}>{r.l}</span>
+            <div style={{display:'flex',gap:24}}>
+              <span style={{fontFamily:'var(--mono)',color:'var(--green)',fontWeight:500}}>{r.rl!=null?r.rl?.toFixed(2):'\u2014'}</span>
+              <span style={{fontFamily:'var(--mono)',color:'var(--blue)',fontWeight:500}}>{r.bh!=null?r.bh?.toFixed(2):'\u2014'}</span>
+            </div>
+          </div>
+        ))}
+        {!rl&&<div style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--t3)',marginTop:10}}>Lance : python train.py --ticker {ticker} --step rl</div>}
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {[[rl,'Agent RL','var(--green)'],[bh,'Buy & Hold','var(--blue)']].map(([m,lbl,c])=>(
+          m&&<div className="card" key={lbl} style={{borderColor:c===('var(--green)')?'rgba(0,214,143,.25)':'rgba(59,130,246,.25)'}}>
+            <div style={{fontFamily:'var(--mono)',fontSize:10,color:c,fontWeight:700,marginBottom:8}}>{lbl}</div>
+            <div style={{fontFamily:'var(--mono)',fontSize:22,fontWeight:700,color:c}}>{m.total_return>0?'+':''}{m.total_return?.toFixed(1)}%</div>
+            <div style={{fontSize:10,color:'var(--t2)',marginBottom:8}}>Total Return</div>
+            <div style={{fontSize:11,color:'var(--t2)'}}>Sharpe: <span style={{color:c,fontFamily:'var(--mono)'}}>{m.sharpe_ratio?.toFixed(3)}</span></div>
+            <div style={{fontSize:11,color:'var(--t2)'}}>Max DD: <span style={{color:'var(--red)',fontFamily:'var(--mono)'}}>{m.max_drawdown?.toFixed(1)}%</span></div>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div className="card">
+      <div className="card-title" style={{marginBottom:14}}>\u00c9volution portfolio \u2014 base $10 000</div>
+      <ResponsiveContainer width="100%" height={240}>
+        <AreaChart data={port} margin={{top:5,right:8,left:0,bottom:5}}>
+          <defs>
+            <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#00d68f" stopOpacity={.12}/>
+              <stop offset="95%" stopColor="#00d68f" stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1a2636" vertical={false}/>
+          <XAxis dataKey="date" tick={{fontSize:8,fill:'#3d5269',fontFamily:'JetBrains Mono'}} tickFormatter={d=>d?.slice(0,7)} interval={Math.max(Math.floor(port.length/6),1)} axisLine={false} tickLine={false}/>
+          <YAxis tick={{fontSize:8,fill:'#3d5269',fontFamily:'JetBrains Mono'}} tickFormatter={v=>'$'+v.toFixed(0)} axisLine={false} tickLine={false} width={52}/>
+          <Tooltip content={<Tip/>}/>
+          <ReferenceLine y={10000} stroke="#233044" strokeDasharray="3 2" strokeWidth={1}/>
+          <Area type="monotone" dataKey="buy_and_hold" stroke="#00d68f" fill="url(#bg)" strokeWidth={1.5} dot={false} name="Buy & Hold"/>
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  </div>);
+}
+
+function DataPage({ticker,period,api}){
+  const [rows,setRows]=useState([]);
+  const [filter,setFilter]=useState('');
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{
+    if(!api){setLoading(false);return;}
+    setLoading(true);
+    fetch(`${API}/data?ticker=${ticker}&period=${period}`)
+      .then(r=>r.json()).then(d=>{setRows(d.data||[]);setLoading(false);}).catch(()=>setLoading(false));
+  },[ticker,period,api]);
+
+  if(!api) return(<div className="banner">API hors ligne.</div>);
+  if(loading) return(<div className="loader"><div className="spin"/>Chargement...</div>);
+  const cols=['date','Close','Open','High','Low','Volume','RSI','MACD','EMA_20','ATR'];
+  const fmt={date:v=>v,Close:v=>v?.toFixed(2),Open:v=>v?.toFixed(2),High:v=>v?.toFixed(2),Low:v=>v?.toFixed(2),Volume:v=>v?.toLocaleString(),RSI:v=>v?.toFixed(1),MACD:v=>v?.toFixed(4),EMA_20:v=>v?.toFixed(2),ATR:v=>v?.toFixed(3)};
+  const filtered=rows.filter(r=>!filter||r.date?.includes(filter)).slice().reverse();
+  const exportCsv=()=>{
+    const csv=[cols.join(','),...filtered.map(r=>cols.map(c=>r[c]??'').join(','))].join('\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv]));a.download=`${ticker}_${period}.csv`;a.click();
+  };
+  return(<div>
+    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12,flexWrap:'wrap'}}>
+      <input className="fi" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filtrer par date (ex: 2023-06)..."/>
+      <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--t3)'}}>{filtered.length} lignes</span>
+      <button className="exp" onClick={exportCsv} style={{marginLeft:'auto'}}>\u2193 Export CSV</button>
+    </div>
+    <div className="tw">
+      <table className="tbl">
+        <thead><tr>{cols.map(c=><th key={c}>{c}</th>)}</tr></thead>
+        <tbody>
+          {filtered.slice(0,300).map((row,i)=>(
+            <tr key={i}>
+              {cols.map(c=>(
+                <td key={c} style={{fontFamily:'var(--mono)',fontSize:10,
+                  color:c==='RSI'?(row[c]>70?'var(--red)':row[c]<30?'var(--green)':'var(--t2)')
+                       :c==='MACD'?(row[c]>0?'var(--green)':'var(--red)'):'var(--t2)'}}>
+                  {fmt[c]?.(row[c])??'\u2014'}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>);
+}
+
+function App(){
+  const [page,setPage]=useState('guide');
+  const [ticker,setTicker]=useState('AAPL');
+  const [period,setPeriod]=useState('1Y');
+  const [api,setApi]=useState(false);
+  const [checking,setChecking]=useState(true);
+
+  useEffect(()=>{
+    const check=()=>fetch(`${API}/health`,{signal:AbortSignal.timeout(2500)})
+      .then(r=>r.ok).then(ok=>{setApi(ok);setChecking(false);}).catch(()=>{setApi(false);setChecking(false);});
+    check();const iv=setInterval(check,8000);return()=>clearInterval(iv);
+  },[]);
+  useEffect(()=>{if(api&&page==='guide')setPage('dashboard');},[api]);
+
+  const cur=TICKERS.find(t=>t.s===ticker);
+  return(<div className="app">
+    <aside className="sidebar">
+      <div className="logo-wrap">
+        <div className="logo">Quant<em>Mind</em></div>
+        <div className="logo-sub">Trading AI</div>
+      </div>
+      <nav style={{flex:1,padding:'8px 0'}}>
+        <div className="nav-sect">Navigation</div>
+        {PAGES.map(p=>(<div key={p.id} className={`nav-btn${page===p.id?' on':''}`} onClick={()=>setPage(p.id)}><span className="nav-icon">{p.icon}</span><span>{p.label}</span></div>))}
+        <div className="nav-sect" style={{marginTop:12}}>Actifs</div>
+        {TICKERS.map(t=>(<div key={t.s} className={`nav-btn${ticker===t.s?' on':''}`} onClick={()=>setTicker(t.s)}><span className="nav-icon" style={{fontSize:10}}>{t.t==='crypto'?'\u20bf':'$'}</span><span>{t.n}</span><span className="nav-tag">{t.t}</span></div>))}
+      </nav>
+      <div className="sidebar-foot">
+        <div className="api-row"><div className={`dot ${api?'online':'offline'}`}/><span>API {checking?'\u2026':api?'online':'offline'}</span></div>
+        <div>localhost:8000</div>
+      </div>
+    </aside>
+    <main className="main">
+      <div className="topbar">
+        <div className="tb-title">{cur?.f} <span style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--t2)',fontWeight:400}}>({ticker})</span></div>
+        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+          {TICKERS.filter(t=>t.t==='stock').map(t=>(<div key={t.s} className={`tb-t${ticker===t.s?' on':''}`} onClick={()=>setTicker(t.s)}>{t.n}<span className="tb-tsub">stock</span></div>))}
+          <div className="sep"/>
+          {TICKERS.filter(t=>t.t==='crypto').map(t=>(<div key={t.s} className={`tb-t${ticker===t.s?' on':''}`} onClick={()=>setTicker(t.s)}>{t.n}<span className="tb-tsub">crypto</span></div>))}
+        </div>
+        <div className="period-grp">
+          {PERIODS.map(p=>(<button key={p} className={`p-btn${period===p?' on':''}`} onClick={()=>setPeriod(p)}>{p}</button>))}
+        </div>
+      </div>
+      <div className="content">
+        {page==='guide'     &&<GuidePage api={api}/>}
+        {page==='dashboard' &&<DashboardPage ticker={ticker} period={period} api={api}/>}
+        {page==='perf'      &&<PerfPage ticker={ticker} period={period} api={api}/>}
+        {page==='data'      &&<DataPage ticker={ticker} period={period} api={api}/>}
+      </div>
+    </main>
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
