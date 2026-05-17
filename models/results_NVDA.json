@@ -1,0 +1,42 @@
+{
+  "ticker": "NVDA",
+  "timestamp": "2026-05-17T14:07:41.764328",
+  "lstm": {
+    "rmse": 22.1579,
+    "mae": 18.7885,
+    "mape": 10.5751,
+    "directional_accuracy": 44.92,
+    "epochs": 56,
+    "train_samples": 944,
+    "test_samples": 119
+  },
+  "features": [
+    "Close",
+    "Volume",
+    "EMA_20",
+    "EMA_50",
+    "RSI",
+    "MACD",
+    "MACD_signal",
+    "BB_width",
+    "ATR",
+    "Vol_ratio"
+  ],
+  "seq_len": 60,
+  "rl_agent": {
+    "total_return": 11.94,
+    "sharpe_ratio": 2.2297,
+    "max_drawdown": -2.28,
+    "win_rate": 100.0,
+    "n_trades": 3,
+    "final_balance": 11193.89
+  },
+  "buy_and_hold": {
+    "total_return": 136.18,
+    "sharpe_ratio": 2.3138,
+    "max_drawdown": -19.74,
+    "final_balance": 23618.24,
+    "win_rate": null,
+    "n_trades": 1
+  }
+}

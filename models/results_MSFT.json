@@ -1,0 +1,42 @@
+{
+  "ticker": "MSFT",
+  "timestamp": "2026-05-17T13:25:59.175720",
+  "lstm": {
+    "rmse": 3.891,
+    "mae": 2.9702,
+    "mape": 3.8718,
+    "directional_accuracy": 53.39,
+    "epochs": 64,
+    "train_samples": 944,
+    "test_samples": 119
+  },
+  "features": [
+    "Close",
+    "Volume",
+    "EMA_20",
+    "EMA_50",
+    "RSI",
+    "MACD",
+    "MACD_signal",
+    "BB_width",
+    "ATR",
+    "Vol_ratio"
+  ],
+  "seq_len": 60,
+  "rl_agent": {
+    "total_return": 2.43,
+    "sharpe_ratio": 2.4588,
+    "max_drawdown": -0.43,
+    "win_rate": 0.0,
+    "n_trades": 1,
+    "final_balance": 10243.05
+  },
+  "buy_and_hold": {
+    "total_return": 42.89,
+    "sharpe_ratio": 2.5866,
+    "max_drawdown": -6.0,
+    "final_balance": 14288.93,
+    "win_rate": null,
+    "n_trades": 1
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "ticker": "GOOGL",
+  "timestamp": "2026-05-17T13:39:58.871417",
+  "lstm": {
+    "rmse": 38.4109,
+    "mae": 32.7666,
+    "mape": 3.3346,
+    "directional_accuracy": 50.85,
+    "epochs": 50,
+    "train_samples": 944,
+    "test_samples": 119
+  },
+  "features": [
+    "Close",
+    "Volume",
+    "EMA_20",
+    "EMA_50",
+    "RSI",
+    "MACD",
+    "MACD_signal",
+    "BB_width",
+    "ATR",
+    "Vol_ratio"
+  ],
+  "seq_len": 60,
+  "rl_agent": {
+    "total_return": 26.34,
+    "sharpe_ratio": 1.9862,
+    "max_drawdown": -6.93,
+    "win_rate": 0.0,
+    "n_trades": 1,
+    "final_balance": 12633.9
+  },
+  "buy_and_hold": {
+    "total_return": 31.7,
+    "sharpe_ratio": 2.0134,
+    "max_drawdown": -8.45,
+    "final_balance": 13170.04,
+    "win_rate": null,
+    "n_trades": 1
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "ticker": "AMZN",
+  "timestamp": "2026-05-17T13:53:44.258560",
+  "lstm": {
+    "rmse": 55.0373,
+    "mae": 41.75,
+    "mape": 4.0606,
+    "directional_accuracy": 52.54,
+    "epochs": 50,
+    "train_samples": 944,
+    "test_samples": 119
+  },
+  "features": [
+    "Close",
+    "Volume",
+    "EMA_20",
+    "EMA_50",
+    "RSI",
+    "MACD",
+    "MACD_signal",
+    "BB_width",
+    "ATR",
+    "Vol_ratio"
+  ],
+  "seq_len": 60,
+  "rl_agent": {
+    "total_return": 37.81,
+    "sharpe_ratio": 2.0443,
+    "max_drawdown": -8.75,
+    "win_rate": 0.0,
+    "n_trades": 1,
+    "final_balance": 13781.14
+  },
+  "buy_and_hold": {
+    "total_return": 49.25,
+    "sharpe_ratio": 2.0786,
+    "max_drawdown": -10.85,
+    "final_balance": 14925.18,
+    "win_rate": null,
+    "n_trades": 1
+  }
+}

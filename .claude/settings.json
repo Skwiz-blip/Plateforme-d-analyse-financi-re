@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import ast; ast.parse\\(open\\('api.py'\\).read\\(\\)\\); print\\('api.py OK'\\)\")",
+      "Bash(docker-compose up *)",
+      "Bash(curl -s -I http://localhost:8080)",
+      "Bash(curl -s http://localhost:8080)",
+      "Bash(docker exec *)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api ls //app/data/Stocks)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api ls //app/models)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"touch /app/models/test_write && rm /app/models/test_write && echo OK\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"touch /app/data/processed/test_write && rm /app/data/processed/test_write && echo OK\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"touch /app/models/test_write && rm /app/models/test_write && echo OK-WRITE\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec -d quantmind-api sh -c 'for T in AAPL TSLA MSFT GOOGL AMZN NVDA; do echo \"=== TRAINING $T ===\" >> /app/models/training.log 2>&1; python train.py --ticker $T --data-path /app/data --step all >> /app/models/training.log 2>&1; done; echo DONE >> /app/models/training.log')",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"tail -3 /app/models/training.log 2>/dev/null\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"tail -20 /app/models/training.log 2>&1; echo '---PROC---'; ps aux | grep -E 'python|train' | grep -v grep\")",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s http://localhost:8000/tickers)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec -d quantmind-api sh -c ' *)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"tail -3 /app/models/training.log\")",
+      "Bash(curl -s -w \"\\\\n[HTTP %{http_code}]\\\\n\" \"http://localhost:8000/predict?ticker=TSLA\")",
+      "Bash(curl -s -w \"\\\\n[HTTP %{http_code}]\\\\n\" \"http://localhost:8000/predict?ticker=BTC-USD\")",
+      "Bash(curl -s \"http://localhost:8000/tickers\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"tail -5 /app/models/training.log 2>&1\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"ls /proc/[0-9]*/comm 2>/dev/null | xargs -I {} sh -c 'echo \\\\\"{}: \\\\$\\(cat {}\\)\\\\\"' 2>/dev/null | grep -v ':$' | head -20\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"ls /proc/[0-9]*/comm 2>/dev/null | xargs -I {} sh -c 'echo \\\\\"{}: \\\\$\\(cat {}\\)\\\\\"' 2>/dev/null | grep -v ':$' | tail -5\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"python -c \\\\\"import pandas as pd; df=pd.read_csv\\('/app/data/processed/AAPL.csv',index_col='Date',parse_dates=True\\); print\\('Range :',df.index.min\\(\\).date\\(\\),'→',df.index.max\\(\\).date\\(\\)\\); print\\('Total :',len\\(df\\),'jours'\\); print\\('Cutoff Kaggle \\(2017-11\\):',len\\(df[df.index<='2017-11-10']\\),'jours avant'\\); print\\('Apres 2017-11:',len\\(df[df.index>'2017-11-10']\\),'jours \\(yfinance\\)'\\)\\\\\"\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"grep -E 'yfinance|Kaggle|Total' /app/models/training.log | tail -30\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"tail -100 /app/models/training.log | head -50\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec quantmind-api sh -c \"tail -3 /app/models/training.log; echo '---LOG SECTIONS---'; grep -E '=== ' /app/models/training.log\")",
+      "Bash(docker-compose restart *)",
+      "Bash(curl -s \"http://localhost:8000/model/info?ticker=TSLA\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Params LSTM:',d['lstm']['total_params'],'| Dir Acc:',d['lstm']['training'].get\\('directional_accuracy'\\),'%'\\); rl=d['ppo']['results']; bh=d['ppo']['buy_and_hold']; print\\('RL Sharpe:',rl.get\\('sharpe_ratio'\\),'vs B&H:',bh.get\\('sharpe_ratio'\\)\\); print\\('RL Return:',rl.get\\('total_return'\\),'% vs B&H:',bh.get\\('total_return'\\),'%'\\)\")",
+      "Bash(docker-compose build *)",
+      "Bash(grep -c \"\\\\\\\\\\\\\\\\u00\" frontend/index.html)",
+      "Bash(grep -n \"\\\\\\\\\\\\\\\\u\" frontend/index.html)",
+      "Bash(grep -on '\\\\\\\\u[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]' frontend/index.html)",
+      "Bash(sort -u -t: -k3)",
+      "Bash(awk -F: '{print $3}')"
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "ticker": "TSLA",
+  "timestamp": "2026-05-17T13:11:00.210805",
+  "lstm": {
+    "rmse": 57.8238,
+    "mae": 55.5517,
+    "mape": 15.8772,
+    "directional_accuracy": 44.92,
+    "epochs": 51,
+    "train_samples": 944,
+    "test_samples": 119
+  },
+  "features": [
+    "Close",
+    "Volume",
+    "EMA_20",
+    "EMA_50",
+    "RSI",
+    "MACD",
+    "MACD_signal",
+    "BB_width",
+    "ATR",
+    "Vol_ratio"
+  ],
+  "seq_len": 60,
+  "rl_agent": {
+    "total_return": 9.95,
+    "sharpe_ratio": 1.6704,
+    "max_drawdown": -3.48,
+    "win_rate": 100.0,
+    "n_trades": 9,
+    "final_balance": 10994.54
+  },
+  "buy_and_hold": {
+    "total_return": 64.29,
+    "sharpe_ratio": 1.6106,
+    "max_drawdown": -22.27,
+    "final_balance": 16429.24,
+    "win_rate": null,
+    "n_trades": 1
+  }
+}
