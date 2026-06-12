@@ -1,13 +1,13 @@
 {
   "ticker": "AAPL",
-  "timestamp": "2026-05-17T12:54:08.704260",
+  "timestamp": "2026-06-12T22:17:16.097708",
   "rl_agent": {
-    "total_return": 6.63,
-    "sharpe_ratio": 2.7411,
-    "max_drawdown": -1.31,
+    "total_return": 6.04,
+    "sharpe_ratio": 2.522,
+    "max_drawdown": -1.32,
     "win_rate": 0.0,
     "n_trades": 1,
-    "final_balance": 10663.12
+    "final_balance": 10604.16
   },
   "buy_and_hold": {
     "total_return": 61.11,

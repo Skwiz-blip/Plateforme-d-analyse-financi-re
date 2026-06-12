@@ -17,8 +17,35 @@ Le LSTM (Long Short-Term Memory) est un réseau de neurones spécialisé dans l'
 
 ```
 Entrée : 60 jours d'historique (prix, volume, indicateurs)
-Sortie : Prix prédit pour J+1
+Sortie : RENDEMENT prédit pour J+1, en %   (r̂ = variation attendue du prix)
+Prix reconstruit : prix_prédit = Close_aujourd'hui × (1 + r̂/100)
 ```
+
+### Pourquoi prédire le rendement et PAS le prix brut ?
+
+C'est la décision de modélisation la plus importante du projet :
+
+| | Prix brut (1ère version — abandonnée) | Rendement (version actuelle) |
+|---|---|---|
+| Nature statistique | Non-stationnaire (moyenne/échelle changent) | Stationnaire (centré sur 0, ~±1%) |
+| Comportement hors plage d'entraînement | Le modèle "dérive" vers les prix connus | Aucune dérive possible |
+| Résultat mesuré (AAPL) | RMSE **$19.29** (10x pire que la naïve) | RMSE **$1.91** + Dir.Acc **56.3%** |
+
+Le prix reconstruit est **ancré au dernier prix réel** : au pire (r̂ = 0), on retombe
+exactement sur la baseline naïve. Le modèle ne peut plus être absurde.
+
+### Baselines de référence (méthodologie obligatoire)
+
+Tout modèle est comparé sur le **même test set** à 3 références :
+
+| Baseline | Définition | Rôle |
+|---|---|---|
+| Naïve (persistance) | r̂ = 0 (prix demain = prix aujourd'hui) | Plancher du RMSE prix |
+| Momentum | r̂ = rendement de la veille | Référence directionnelle |
+| Régression linéaire | features du dernier jour → rendement | Modèle simple non-séquentiel |
+
+Un LSTM n'a de valeur que s'il **bat la meilleure baseline en Directional Accuracy**
+(c'est le cas sur 5 tickers sur 6 ; voir `models/results_*.json`, clé `baselines`).
 
 ### Pourquoi 60 jours ?
 
@@ -44,7 +71,9 @@ Sortie : Prix prédit pour J+1
 ### Processus de Normalisation
 
 ```
-Données brutes --> MinMaxScaler (0-1) --> LSTM --> Dé-normalisation --> Prix réel
+Features (X)  : données brutes --> MinMaxScaler (0-1)        [scaler fitté sur le train seul]
+Cible (y)     : rendement journalier × 100 (en %)            [déjà stationnaire, pas de scaler]
+Sortie        : r̂ (%) --> prix reconstruit = Close_J × (1 + r̂/100)
 ```
 
 **Important** : Le scaler est fitté UNIQUEMENT sur les données d'entraînement (80%) pour éviter le data leakage.
@@ -326,25 +355,25 @@ Performance = (prix_final / prix_initial - 1) × 100
 
 ```
 1. CHARGEMENT
-   Kaggle/yfinance --> CSV (OHLCV)
+   Kaggle (CSV OHLCV)
 
 2. INDICATEURS
    CSV --> compute_indicators() --> CSV + features
 
 3. NORMALISATION
-   Features --> MinMaxScaler --> [0, 1]
+   Features --> MinMaxScaler --> [0, 1]   (cible = rendement %, non scalée)
 
 4. SÉQUENCES
-   Data --> sliding window (60) --> X, y
+   Data --> sliding window (60) --> X ; y = rendement J+1 (%)
 
 5. LSTM TRAINING
-   X_train, y_train --> model.fit() --> lstm.keras
+   X_train, y_train --> model.fit() --> lstm.keras  (+ baselines évaluées)
 
 6. PREDICTIONS
-   Data --> lstm.predict() --> prédictions
+   Data --> lstm.predict() --> rendements --> prix reconstruits
 
 7. RL ENVIRONMENT
-   Data + prédictions --> TradingEnv
+   Data + prix reconstruits --> TradingEnv
 
 8. RL TRAINING
    TradingEnv --> PPO.learn() --> ppo.zip
@@ -352,6 +381,34 @@ Performance = (prix_final / prix_initial - 1) × 100
 9. INFÉRENCE
    Nouvelles données --> LSTM + PPO --> Action
 ```
+
+---
+
+## 7bis. Flux TEMPS RÉEL (Kafka) — brique streaming
+
+En plus du flux batch ci-dessus, le système rejoue le marché en continu :
+
+```
+producer.py                    Kafka                    consumer.py
+(replay des CSV,          ┌──────────────┐      (fenêtre glissante 60 jours
+ 1 tick = 1 jour     ────►│ topic prices │─────► LSTM → r̂ → prix prédit
+ de bourse)               │              │       PPO  → action + probabilité réelle
+                          │ topic signals│◄───── paper trading : exécution,
+                          └──────┬───────┘       portefeuille virtuel 10 000$)
+                                 │
+                          API FastAPI (/live/signals)
+                                 │
+                          Dashboard, onglet "Live" (polling 2s)
+```
+
+Logique métier du consumer :
+1. **Fenêtre glissante** : il accumule 60 jours par ticker avant le 1er signal (préchauffage)
+2. **Scoring** : à chaque tick, le LSTM prédit le rendement J+1 ; le PPO choisit
+   l'action avec sa **probabilité réelle** (lue dans la distribution de la policy,
+   pas une valeur codée en dur)
+3. **Paper trading** : mêmes règles que l'entraînement (10 000$, max 10 actions,
+   frais 0.1%) — le portefeuille virtuel évolue tick par tick
+4. Le signal enrichi (action, confiance, r̂, portefeuille) part vers le topic `signals`
 
 ---
 

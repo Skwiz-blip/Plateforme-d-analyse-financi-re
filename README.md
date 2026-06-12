@@ -1,48 +1,100 @@
-# QuantMind -- Guide Complet
+# QuantMind — Plateforme d'analyse financière (stocks)
 
-QuantMind est un **système intelligent qui apprend à prédire les prix des actions et à prendre des décisions d'achat/vente automatiques**.
+**Sujet 20 — Projets AI & Big Data** : système complet de bout en bout
+`Données → Ingestion (Kafka) → Modèles (LSTM + RL) → API (FastAPI) → Application web → Docker`
 
-Il combine deux technologies :
-- **LSTM** : Un réseau de neurones qui prédit le prix futur
-- **RL (PPO)** : Un agent qui apprend quand acheter ou vendre
+QuantMind apprend à **prédire les rendements boursiers** et à **prendre des décisions
+d'achat/vente automatiques**, puis rejoue le marché **en temps réel** via un pipeline de streaming.
+
+Il combine :
+- **LSTM** : prédit le *rendement* du lendemain (hausse/baisse et amplitude)
+- **RL (PPO)** : un agent qui apprend quand acheter, vendre ou attendre
+- **Kafka** : flux de prix temps réel → scoring live → dashboard
 
 ---
 
-## Comment ça fonctionne ? (Explication simple)
+## 🚀 Démarrage en UNE commande (recommandé)
 
-### Étape 1 : Récupération des données
-
-```
-Données historiques (prix, volume) 
-    --> Indicateurs techniques calculés (RSI, MACD, EMA...)
-    --> Sauvegardées dans data/processed/
+```bash
+docker compose up --build
 ```
 
-**En simple** : On télécharge l'historique des prix (5 ans) et on calcule des "indicateurs" qui aident à comprendre si le marché monte ou descend.
+Cela démarre les 5 services :
 
-### Étape 2 : Entraînement du LSTM (Prédiction)
+| Service | Rôle | Accès |
+|---|---|---|
+| `kafka` | Bus de messages (ingestion temps réel) | interne (`:9094` pour le dev local) |
+| `producer` | Rejoue l'historique des prix tick par tick → topic `prices` | — |
+| `consumer` | Score chaque tick (LSTM + PPO) + paper trading → topic `signals` | — |
+| `backend` | API FastAPI (modèles + endpoints live) | http://localhost:8000 (docs : `/docs`) |
+| `frontend` | Dashboard web (React + Recharts) | http://localhost:8080 |
+
+Ouvre **http://localhost:8080** → onglet **Live** pour voir les signaux tomber en temps réel.
+
+---
+
+## Architecture du système
 
 ```
-60 jours d'historique --> LSTM --> Prédiction du prix J+1
+              ┌─────────────── Conteneurs Docker ────────────────────────┐
+              │                                                          │
+ Données      │  ┌──────────┐   ┌─────────┐   ┌──────────────────┐      │
+ Kaggle ────────►│ Producer │──►│  Kafka  │──►│     Consumer     │      │
+ (CSV)        │  │ (replay) │   │ prices  │   │ LSTM + PPO live  │      │
+              │  └──────────┘   │ signals │◄──│ + paper trading  │      │
+              │                 └────┬────┘   └──────────────────┘      │
+              │                      │                                  │
+              │                 ┌────▼────────┐      ┌──────────┐       │
+              │                 │ API FastAPI │─────►│ Frontend │───────┼──► Utilisateur
+              │                 │ /predict    │      │ React    │       │
+              │   models/ ─────►│ /strategy   │      │ + Live   │       │
+              │   (entraînés)   │ /live/*     │      └──────────┘       │
+              │                 └─────────────┘                         │
+              └──────────────────────────────────────────────────────────┘
 ```
 
-**En simple** : Le LSTM regarde les 60 derniers jours et essaie de deviner le prix de demain. Il s'entraîne sur des milliers d'exemples jusqu'à devenir bon.
+---
 
-**Métriques importantes** :
-- `Directional Accuracy` : % de fois où il devine la bonne direction (hausse/baisse)
+## Comment ça fonctionne
 
-### Étape 3 : Entraînement de l'agent RL (Décision)
+### Étape 1 — Données + indicateurs techniques
+On télécharge l'historique des prix (dataset Kaggle) et on calcule les indicateurs :
+RSI, MACD, EMA 20/50, Bandes de Bollinger, ATR, ratio de volume.
 
+### Étape 2 — LSTM : prédire le RENDEMENT, pas le prix
+Le LSTM regarde les **60 derniers jours** et prédit le **rendement de demain (%)**.
+
+> **Pourquoi le rendement et pas le prix ?** Le prix est non-stationnaire : un modèle
+> entraîné sur des prix à 100$ dérive quand le titre passe à 170$. Le rendement
+> journalier (~±1%) est stationnaire → le modèle apprend la *variation*, qui est la
+> vraie inconnue. Le prix est ensuite reconstruit : `prix_prédit = Close_J × (1 + r̂/100)`.
+
+Le modèle est **toujours comparé à des baselines** sur le même test set :
+
+| Modèle (AAPL, test set) | RMSE ($) | MAPE % | Dir. Acc % |
+|---|---|---|---|
+| Naïve (persistance, r̂=0) | 1.88 | 0.90 | — |
+| Momentum (r̂ = rendement J-1) | 2.53 | 1.25 | 47.9 |
+| Régression linéaire | 1.94 | 0.95 | 42.9 |
+| **LSTM (rendement)** | **1.91** | **0.90** | **56.3** |
+
+→ Le LSTM égale la naïve sur le prix et **bat nettement le hasard sur la direction**,
+qui est l'information réellement exploitée par l'agent RL.
+
+### Étape 3 — Agent RL (PPO) : décider
 ```
-État du marché + Prédiction LSTM --> Agent RL --> Action (Acheter/Vendre/Garder)
+État du marché + rendement prédit (LSTM) → Agent PPO → BUY / SELL / HOLD
 ```
+- Entraîné sur 500 000 simulations (environnement Gym custom)
+- **Frais de transaction 0.1%** pour rester réaliste
+- Évalué vs **Buy & Hold** (return total, Sharpe, max drawdown, win rate)
 
-**En simple** : L'agent apprend à trader en simulant des milliers de journées de bourse. Il gagne des "récompenses" quand il fait des bénéfices.
-
-**Important** : 
-- L'agent utilise la prédiction du LSTM comme information
-- Il y a des **frais de transaction (0.1%)** pour être réaliste
-- Il est entraîné sur **500 000 simulations**
+### Étape 4 — Streaming temps réel (Kafka)
+- `streaming/producer.py` rejoue l'historique tick par tick (topic `prices`)
+- `streaming/consumer.py` maintient une fenêtre glissante de 60 jours par ticker,
+  score chaque tick (LSTM + PPO avec **probabilité réelle** de la policy) et gère
+  un **portefeuille virtuel** (paper trading) → topic `signals`
+- L'API expose `/live/status` et `/live/signals` → onglet **Live** du dashboard
 
 ---
 
@@ -50,187 +102,106 @@ Données historiques (prix, volume)
 
 ```
 quantmind/
-+-- train.py          <- Script d'entraînement (3 étapes)
-+-- env.py            <- Environnement de trading (gym)
-+-- api.py            <- API pour utiliser les modèles
-+-- frontend/
-|   +-- index.html    <- Interface web
-+-- models/           <- Modèles sauvegardés
-|   +-- lstm_AAPL.keras    <- Réseau LSTM entraîné
-|   +-- scaler_AAPL.pkl    <- Normalisation
-|   +-- ppo_AAPL.zip       <- Agent RL entraîné
-|   +-- results_AAPL.json  <- Métriques de performance
-+-- data/
-|   +-- raw/          <- Données brutes
-|   +-- processed/    <- Données avec indicateurs
-+-- requirements.txt  <- Dépendances Python
+├── train.py              ← Pipeline d'entraînement (data → LSTM → RL)
+├── env.py                ← Environnement de trading (Gym)
+├── api.py                ← API FastAPI (+ endpoints live)
+├── streaming/
+│   ├── producer.py       ← Replay des prix → Kafka topic `prices`
+│   └── consumer.py       ← Scoring temps réel → Kafka topic `signals`
+├── frontend/
+│   └── index.html        ← Dashboard web (onglets Dashboard / Live / Modèle / ...)
+├── models/               ← Modèles entraînés (lstm_*.keras, scaler_*.pkl, ppo_*.zip)
+├── data/processed/       ← Données + indicateurs techniques
+├── Dockerfile            ← Image backend / producer / consumer
+├── docker-compose.yml    ← Orchestration des 5 services
+└── requirements.txt
 ```
 
 ---
 
-## Installation et Utilisation
+## Entraînement des modèles
 
-### 1. Installer les dépendances
+### 1. Dataset Kaggle
+Télécharger : https://www.kaggle.com/datasets/borismarjanovic/price-volume-data-for-all-us-stocks-etfs
+(le dossier `Data/` contient `Stocks/` et `ETFs/`)
+
+### 2. Pipeline complet
 
 ```bash
 pip install -r requirements.txt
-```
 
-### 2. Télécharger les données
-
-**Option A** : Dataset Kaggle (recommandé)
-- Télécharger : https://www.kaggle.com/datasets/borismarjanovic/price-volume-data-for-all-us-stocks-etfs
-- Placer dans un dossier `Data/`
-
-**Option B** : yfinance automatique
-- Le script télécharge automatiquement si pas de fichier local
-
-### 3. Lancer l'entraînement
-
-```bash
-# Pipeline complet (recommandé)
+# Un ticker (données → LSTM → RL)
 python train.py --ticker AAPL --data-path "C:/chemin/vers/Data"
 
+# Tous les tickers
+python train.py --all-tickers --data-path "C:/chemin/vers/Data"
+
 # Ou étape par étape
-python train.py --ticker AAPL --data-path "C:/chemin/vers/Data" --step data
+python train.py --ticker AAPL --step data --data-path "C:/chemin/vers/Data"
 python train.py --ticker AAPL --step lstm
 python train.py --ticker AAPL --step rl
 ```
 
-### 4. Lancer l'API
+> ⚠️ **Important** : depuis le passage à la cible *rendement*, les anciens modèles
+> (qui prédisaient le prix brut) sont incompatibles. Réentraîner LSTM **puis** RL
+> pour chaque ticker (le RL consomme les prédictions du LSTM).
+
+### 3. Lancement manuel (sans Docker)
 
 ```bash
-uvicorn api:app --reload --port 8000
+uvicorn api:app --port 8000                     # API
+# Mode live (optionnel) — nécessite Kafka :
+docker compose up -d kafka
+$env:KAFKA_BOOTSTRAP="localhost:9094"; python streaming/consumer.py
+$env:KAFKA_BOOTSTRAP="localhost:9094"; python streaming/producer.py
+$env:KAFKA_BOOTSTRAP="localhost:9094"; uvicorn api:app --port 8000
 ```
-
-### 5. Utiliser l'interface web
-
-Ouvrir `frontend/index.html` dans un navigateur.
 
 ---
 
 ## Endpoints de l'API
 
 | Endpoint | Description |
-|----------|-------------|
-| `GET /` | État de l'API |
-| `GET /tickers` | Liste des actions disponibles |
-| `GET /data?ticker=AAPL` | Données historiques |
-| `GET /predict?ticker=AAPL&days=14` | Prédictions LSTM |
-| `GET /strategy?ticker=AAPL` | Signaux d'achat/vente |
-| `GET /performance?ticker=AAPL` | Performance vs Buy & Hold |
+|---|---|
+| `GET /` , `GET /health` | État de l'API |
+| `GET /tickers` | Tickers avec modèles entraînés |
+| `GET /data?ticker=AAPL&period=1Y` | Données historiques + indicateurs |
+| `GET /data/summary?ticker=AAPL` | Résumé (prix, RSI, MACD...) |
+| `GET /predict?ticker=AAPL&days=14` | Prévision LSTM (rendements → prix reconstruits) |
+| `GET /strategy?ticker=AAPL` | Signaux BUY/SELL/HOLD + **probabilité réelle** PPO |
+| `GET /performance?ticker=AAPL` | Backtest RL vs Buy & Hold |
+| `GET /model/info?ticker=AAPL` | Architecture LSTM + hyperparamètres PPO + métriques |
+| `GET /live/status` | État du pipeline streaming Kafka |
+| `GET /live/signals?ticker=AAPL` | Derniers signaux temps réel (mode Live) |
 
 ---
 
-## Indicateurs Techniques Utilisés
+## Méthodologie (anti data-leakage)
 
-| Indicateur | Signification simple |
-|------------|---------------------|
-| **RSI** | Entre 0-100. >70 = suracheté, <30 = survendu |
-| **MACD** | Différence entre 2 moyennes mobiles. >0 = tendance haussière |
-| **EMA_20/50** | Moyenne mobile exponentielle. Prix au-dessus = haussier |
-| **BB_width** | Largeur des bandes de Bollinger. Élevé = forte volatilité |
-| **ATR** | Mesure la volatilité moyenne |
-| **Vol_ratio** | Volume vs moyenne. >1 = volume élevé |
+1. **Split temporel strict** 80/10/10 (train/val/test) — jamais de shuffle
+2. Scaler **fitté sur le train uniquement**
+3. Le test set n'est utilisé **qu'une seule fois**, à la fin
+4. Baselines évaluées sur le **même** test set que le LSTM
+5. Backtest RL sur des données jamais vues, frais de transaction inclus
 
 ---
 
-## Métriques de Performance
+## Limites connues (voir rapport, section 8)
 
-### Pour le LSTM
-- **RMSE** : Erreur moyenne en dollars
-- **MAPE** : Erreur moyenne en pourcentage
-- **Directional Accuracy** : % de bonnes prédictions de direction
-
-### Pour l'agent RL
-- **Total Return** : Gain/perte total en %
-- **Sharpe Ratio** : Rendement ajusté au risque (>1 = bon)
-- **Max Drawdown** : Plus grosse perte depuis un pic
-- **Win Rate** : % de trades gagnants
-
----
-
-## Prévention du Data Leakage
-
-**Problème courant** : Utiliser des données futures pour prédire le passé.
-
-**Notre solution** :
-1. Split temporel strict (80% train, 20% test)
-2. Le scaler est fitté uniquement sur le train set
-3. Pas de shuffle des données
-
----
-
-## Architecture du Système
-
-```
-                    +------------------+
-                    |   Données CSV    |
-                    +--------+---------+
-                             |
-                             v
-                    +------------------+
-                    | Indicateurs Tech |
-                    +--------+---------+
-                             |
-              +--------------+--------------+
-              |                             |
-              v                             v
-    +------------------+           +------------------+
-    |   LSTM Model     |           |   Agent RL       |
-    | (Prédiction)     |---------->| (Décision)       |
-    +------------------+  feature  +------------------+
-                                    |
-                                    v
-                           +------------------+
-                           |   Action:        |
-                           | 0=Hold 1=Buy     |
-                           | 2=Sell           |
-                           +------------------+
-```
-
----
-
-## Tickers Supportés
-
-| Ticker | Nom | Type |
-|--------|-----|------|
-| AAPL | Apple | Action |
-| TSLA | Tesla | Action |
-| MSFT | Microsoft | Action |
-| GOOGL | Alphabet | Action |
-| AMZN | Amazon | Action |
-| NVDA | NVIDIA | Action |
-| BTC-USD | Bitcoin | Crypto |
-| ETH-USD | Ethereum | Crypto |
+- La prévision multi-jours (`/predict?days=N`) gèle les indicateurs techniques
+  (seul le prix est mis à jour de façon autorégressive)
+- Le dataset Kaggle s'arrête en 2017 (le mode Live **rejoue** ce flux historique)
+- Pas d'analyse fondamentale (P/E, bilans) — données historiques non disponibles gratuitement
+- Améliorations possibles : ingestion yfinance (données récentes + crypto),
+  features de contexte marché (S&P 500, VIX), job Spark batch sur les ~8 000 tickers
 
 ---
 
 ## Dépannage
 
-### Erreur : "gymnasium non disponible"
-```bash
-pip install gymnasium
-```
-
-### Erreur : "stable-baselines3 non disponible"
-```bash
-pip install stable-baselines3
-```
-
-### Erreur : "TensorFlow non disponible"
-```bash
-pip install tensorflow
-```
-
-### L'agent trade trop souvent
-C'est normal si les frais de transaction n'étaient pas activés. Ils le sont maintenant (0.1%).
-
----
-
-## Pour aller plus loin
-
-- Augmenter `total_timesteps` dans `train.py` pour un meilleur entraînement RL
-- Ajouter d'autres indicateurs techniques dans `FEATURES`
-- Modifier `TRANSACTION_COST` dans `env.py` pour simuler d'autres frais
-- Ajuster les hyperparamètres PPO (learning_rate, batch_size...)
+| Problème | Solution |
+|---|---|
+| `gymnasium` / `stable-baselines3` / `tensorflow` manquant | `pip install -r requirements.txt` |
+| `docker pull` / `docker compose build` échoue (DNS `auth.docker.io`) | récupérer chaque image via le miroir Google puis la retaguer : `docker pull mirror.gcr.io/<image>` puis `docker tag mirror.gcr.io/<image> <image>`. Images nécessaires : `apache/kafka:3.7.2`, `library/python:3.10-slim`, `library/nginx:1.27-alpine` |
+| Onglet Live : "Kafka injoignable" | le broker met ~20s à démarrer, retry automatique |
+| `/predict` renvoie 503 | modèles non entraînés pour ce ticker → `python train.py --ticker X` |

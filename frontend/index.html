@@ -82,6 +82,9 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--san
 .loader{display:flex;align-items:center;justify-content:center;height:200px;gap:8px;font-family:var(--mono);font-size:11px;color:var(--t3)}
 .spin{width:13px;height:13px;border:2px solid var(--b2);border-top-color:var(--green);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.pulse{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.live-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 9px;border-radius:3px;background:var(--rdim);color:var(--red);border:1px solid rgba(244,63,94,.25)}
 .banner{background:var(--rdim);border:1px solid rgba(244,63,94,.2);border-radius:var(--r);padding:9px 13px;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--red);line-height:1.7}
 .banner code{background:rgba(244,63,94,.1);padding:1px 5px;border-radius:2px}
 .bok{background:var(--gdim);border-color:rgba(0,214,143,.2);color:var(--green)}
@@ -128,6 +131,7 @@ const ICONS={
   data:     <><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"/></>,
   stock:    <path d="M3 17l6-6 4 4 8-8m-5 0h5v5"/>,
   online:   <circle cx="12" cy="12" r="5"/>,
+  live:     <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>,
 };
 
 const Icon=({name,size=16,color='currentColor'})=>(
@@ -139,6 +143,7 @@ const Icon=({name,size=16,color='currentColor'})=>(
 const PAGES=[
   {id:"guide",     label:"Guide"},
   {id:"dashboard", label:"Dashboard"},
+  {id:"live",      label:"Live"},
   {id:"model",     label:"Mod\u00e8le"},
   {id:"perf",      label:"Performance"},
   {id:"data",      label:"Donn\u00e9es"},
@@ -630,6 +635,124 @@ function ModelPage({ticker,api}){
   </div>);
 }
 
+function LivePage({ticker,api}){
+  const [st,setSt]=useState({status:null,signals:[],loading:true});
+  useEffect(()=>{
+    if(!api){setSt(s=>({...s,loading:false}));return;}
+    let stop=false;
+    const poll=()=>Promise.all([
+      fetch(`${API}/live/status`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/live/signals?ticker=${ticker}&limit=120`).then(r=>r.ok?r.json():null).catch(()=>null),
+    ]).then(([status,sig])=>{if(!stop)setSt({status,signals:sig?.signals||[],loading:false});});
+    poll();
+    const iv=setInterval(poll,2000);
+    return()=>{stop=true;clearInterval(iv);};
+  },[ticker,api]);
+
+  if(!api) return(<div className="banner">API hors ligne — voir onglet Guide</div>);
+  const {status,signals,loading}=st;
+  if(loading) return(<div className="loader"><div className="spin"/>Connexion au flux...</div>);
+  if(!status?.enabled) return(<div className="banner">
+    Mode live désactivé (KAFKA_BOOTSTRAP non défini côté API).<br/>
+    Lance le pipeline complet : <code>docker compose up --build</code>
+  </div>);
+  if(!status.connected) return(<div className="banner">⚠ Kafka injoignable — le broker démarre peut-être encore (retry automatique toutes les 10s)</div>);
+
+  const last=signals[signals.length-1];
+  const chart=signals.map(s=>({date:s.date,close:s.close,predicted:s.predicted_price,portfolio:s.portfolio_value}));
+  const buys=signals.filter(s=>s.action==='BUY').length, sells=signals.filter(s=>s.action==='SELL').length;
+
+  return(<div>
+    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+      <span className="live-badge"><span className="dot online pulse" style={{background:'var(--red)'}}/>LIVE</span>
+      <span style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--t2)'}}>
+        Kafka → consumer (LSTM + PPO) → topic signals · {signals.length} ticks reçus pour {ticker}
+      </span>
+    </div>
+
+    {!last&&<div className="banner bok">✓ Pipeline connecté — en attente des premiers signaux (préchauffage du producer : 60 jours)...</div>}
+
+    {last&&<div className="grid g4" style={{marginBottom:14}}>
+      {[
+        {v:`$${last.close?.toFixed(2)}`,l:'Dernier prix',h:last.date,c:''},
+        {v:last.action,l:'Décision RL (live)',h:`confiance ${(last.confidence*100).toFixed(0)}%`,c:last.action==='BUY'?'g':last.action==='SELL'?'r':'b'},
+        {v:`${last.predicted_return_pct>=0?'+':''}${last.predicted_return_pct?.toFixed(2)}%`,l:'Rendement J+1 prédit (LSTM)',h:`prix prédit $${last.predicted_price?.toFixed(2)}`,c:last.predicted_return_pct>=0?'g':'r'},
+        {v:`$${last.portfolio_value?.toLocaleString()}`,l:'Portefeuille virtuel',h:`${last.total_return_pct>=0?'+':''}${last.total_return_pct?.toFixed(1)}% · ${last.n_trades} trades`,c:last.total_return_pct>=0?'g':'r'},
+      ].map((m,i)=>(
+        <div className="card" key={i}>
+          <span className={`mval ${m.c}`}>{m.v}</span>
+          <div className="mlbl">{m.l}</div>
+          <div className="mhint">{m.h}</div>
+        </div>
+      ))}
+    </div>}
+
+    {chart.length>1&&<div className="grid g2" style={{marginBottom:12}}>
+      <div className="card">
+        <div className="card-title">Flux de prix + prédiction LSTM</div>
+        <ResponsiveContainer width="100%" height={200}>
+          <ComposedChart data={chart} margin={{top:5,right:8,left:0,bottom:5}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1a2636" vertical={false}/>
+            <XAxis dataKey="date" tick={{fontSize:7,fill:'#3d5269',fontFamily:'Poppins'}} tickFormatter={d=>d?.slice(5)} interval={Math.max(Math.floor(chart.length/6),1)} axisLine={false} tickLine={false}/>
+            <YAxis tick={{fontSize:7,fill:'#3d5269',fontFamily:'Poppins'}} domain={['auto','auto']} tickFormatter={v=>'$'+v.toFixed(0)} axisLine={false} tickLine={false} width={46}/>
+            <Tooltip content={<Tip/>}/>
+            <Line type="monotone" dataKey="close" stroke="#00d68f" strokeWidth={1.5} dot={false} name="Prix" isAnimationActive={false}/>
+            <Line type="monotone" dataKey="predicted" stroke="#a78bfa" strokeWidth={1.2} strokeDasharray="4 3" dot={false} name="LSTM J+1" isAnimationActive={false}/>
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="card">
+        <div className="card-title">Portefeuille de l'agent RL (paper trading)</div>
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={chart} margin={{top:5,right:8,left:0,bottom:5}}>
+            <defs>
+              <linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#a78bfa" stopOpacity={.15}/>
+                <stop offset="95%" stopColor="#a78bfa" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1a2636" vertical={false}/>
+            <XAxis dataKey="date" tick={{fontSize:7,fill:'#3d5269',fontFamily:'Poppins'}} tickFormatter={d=>d?.slice(5)} interval={Math.max(Math.floor(chart.length/6),1)} axisLine={false} tickLine={false}/>
+            <YAxis tick={{fontSize:7,fill:'#3d5269',fontFamily:'Poppins'}} domain={['auto','auto']} tickFormatter={v=>'$'+v.toFixed(0)} axisLine={false} tickLine={false} width={52}/>
+            <Tooltip content={<Tip/>}/>
+            <ReferenceLine y={10000} stroke="#233044" strokeDasharray="3 2" strokeWidth={1}/>
+            <Area type="monotone" dataKey="portfolio" stroke="#a78bfa" fill="url(#lg)" strokeWidth={1.6} dot={false} name="Portefeuille" isAnimationActive={false}/>
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>}
+
+    {signals.length>0&&<div className="card">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:6}}>
+        <div className="card-title" style={{marginBottom:0}}>Derniers signaux (temps réel)</div>
+        <div style={{display:'flex',gap:6}}>
+          <span className="sig BUY">BUY {buys}</span>
+          <span className="sig SELL">SELL {sells}</span>
+          <span className="sig HOLD">HOLD {signals.length-buys-sells}</span>
+        </div>
+      </div>
+      <div className="tw">
+        <table className="tbl">
+          <thead><tr><th>Date</th><th>Action</th><th>Prix</th><th>Préd. J+1</th><th>r̂ (%)</th><th>Confiance</th><th>Portefeuille</th></tr></thead>
+          <tbody>
+            {signals.slice().reverse().slice(0,15).map((s,i)=>(
+              <tr key={i}>
+                <td style={{fontFamily:'var(--mono)',fontSize:10}}>{s.date}</td>
+                <td><span className={`sig ${s.action}`}>{s.action}</span></td>
+                <td style={{fontFamily:'var(--mono)'}}>${s.close?.toFixed(2)}</td>
+                <td style={{fontFamily:'var(--mono)'}}>${s.predicted_price?.toFixed(2)}</td>
+                <td style={{fontFamily:'var(--mono)',color:s.predicted_return_pct>=0?'var(--green)':'var(--red)'}}>{s.predicted_return_pct>=0?'+':''}{s.predicted_return_pct?.toFixed(2)}</td>
+                <td style={{fontFamily:'var(--mono)'}}>{(s.confidence*100).toFixed(0)}%</td>
+                <td style={{fontFamily:'var(--mono)',color:s.total_return_pct>=0?'var(--green)':'var(--red)'}}>${s.portfolio_value?.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>}
+  </div>);
+}
+
 function App(){
   const [page,setPage]=useState('guide');
   const [ticker,setTicker]=useState(null);
@@ -684,6 +807,7 @@ function App(){
         {page==='guide'     &&<GuidePage api={api}/>}
         {!ticker&&page!=='guide'&&<div className="banner">Aucun ticker entra\u00een\u00e9 disponible. Lance l'entra\u00eenement.</div>}
         {ticker&&page==='dashboard' &&<DashboardPage ticker={ticker} period={period} api={api}/>}
+        {ticker&&page==='live'      &&<LivePage ticker={ticker} api={api}/>}
         {ticker&&page==='model'     &&<ModelPage ticker={ticker} api={api}/>}
         {ticker&&page==='perf'      &&<PerfPage ticker={ticker} period={period} api={api}/>}
         {ticker&&page==='data'      &&<DataPage ticker={ticker} period={period} api={api}/>}

@@ -20,14 +20,15 @@ RUN pip install --upgrade pip
 # Si une couche échoue, `docker-compose build` reprendra à partir d'elle.
 RUN pip install fastapi==0.111.0 "uvicorn[standard]==0.29.0"
 RUN pip install numpy==1.26.4 pandas==2.2.2 scikit-learn==1.4.2
-RUN pip install yfinance==0.2.40
 RUN pip install tensorflow-cpu==2.16.1
 RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu torch==2.3.0+cpu
 RUN pip install stable-baselines3==2.4.0 gymnasium==0.29.1
+RUN pip install "kafka-python>=2.1,<3"
 
 COPY requirements.txt .
 
 COPY api.py env.py train.py ./
+COPY streaming/ ./streaming/
 COPY models/ ./models/
 COPY data/ ./data/
 

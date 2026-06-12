@@ -1,6 +1,78 @@
-version: "3.9"
-
 services:
+
+  # ─── Brique Ingestion / Streaming (architecture du cours) ────────────────
+  # Image officielle Apache (bitnami/kafka est dépréciée depuis 2025).
+  # Mode KRaft mono-nœud : pas de Zookeeper nécessaire.
+  kafka:
+    image: apache/kafka:3.7.2
+    container_name: quantmind-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    ports:
+      - "9094:9094"     # accès depuis la machine hôte (dev local)
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  # Rejoue l'historique des prix tick par tick → topic `prices`
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quantmind-producer
+    command: python streaming/producer.py
+    environment:
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - TICKERS=AAPL,MSFT,NVDA
+      - SPEED=2
+      - REPLAY_DAYS=250
+      - LOOP=1
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      disable: true   # worker sans port : le healthcheck hérité de l'image ne s'applique pas
+    restart: unless-stopped
+
+  # Score chaque tick (LSTM + PPO) → topic `signals`
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quantmind-consumer
+    command: python streaming/consumer.py
+    environment:
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - TF_CPP_MIN_LOG_LEVEL=3
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      disable: true   # worker sans port : le healthcheck hérité de l'image ne s'applique pas
+    restart: unless-stopped
+
+  # ─── API (FastAPI) ────────────────────────────────────────────────────────
   backend:
     build:
       context: .
@@ -13,6 +85,10 @@ services:
       - ./data:/app/data
     environment:
       - TF_CPP_MIN_LOG_LEVEL=3
+      - KAFKA_BOOTSTRAP=kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 30s
@@ -21,6 +97,7 @@ services:
       start_period: 40s
     restart: unless-stopped
 
+  # ─── Application web ──────────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend

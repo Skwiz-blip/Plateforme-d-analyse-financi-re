@@ -1,12 +1,5 @@
-"""
-QuantMind API — FastAPI
-
-Tout est réel : aucune simulation, aucun fallback yfinance.
-Si un modèle est absent → 503. Si un CSV est absent → 404.
-Les tickers exposés via /tickers sont ceux ayant un LSTM + PPO entraînés.
-"""
-
-import os, json, pickle, logging
+import os, json, time, pickle, logging, threading
+from collections import deque
 from contextlib import asynccontextmanager
 
 import numpy as np
@@ -20,10 +13,10 @@ log = logging.getLogger("quantmind")
 MODELS_DIR = "models"
 DATA_DIR   = "data/processed"
 SEQ_LEN    = 60
+TARGET_SCALE = 100.0   
 FEATURES   = ["Close","Volume","EMA_20","EMA_50","RSI",
               "MACD","MACD_signal","BB_width","ATR","Vol_ratio"]
-
-# Univers du projet : actions du dataset Kaggle uniquement.
+ 
 ALL_TICKERS = [
     {"symbol":"AAPL", "name":"Apple Inc.",      "type":"stock"},
     {"symbol":"TSLA", "name":"Tesla Inc.",      "type":"stock"},
@@ -34,6 +27,44 @@ ALL_TICKERS = [
 ]
 
 store: dict = {}
+
+# ─── Mode LIVE (Kafka) ───────────────────────────────────────────────────────
+# Un thread d'arrière-plan consomme le topic `signals` produit par
+# streaming/consumer.py et garde les derniers signaux en mémoire.
+# Si KAFKA_BOOTSTRAP n'est pas défini, le mode live est simplement désactivé.
+
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "")
+LIVE = {
+    "enabled":   bool(KAFKA_BOOTSTRAP),
+    "connected": False,
+    "signals":   deque(maxlen=1000),
+}
+
+
+def _live_consumer_loop():
+    """Consomme le topic `signals` en continu, avec reconnexion automatique."""
+    try:
+        from kafka import KafkaConsumer
+    except ImportError:
+        log.warning("kafka-python non installé — mode live désactivé")
+        return
+
+    while True:
+        try:
+            consumer = KafkaConsumer(
+                "signals",
+                bootstrap_servers=KAFKA_BOOTSTRAP,
+                auto_offset_reset="latest",
+                value_deserializer=lambda b: json.loads(b.decode("utf-8")),
+            )
+            LIVE["connected"] = True
+            log.info(f"Mode live : connecté à Kafka ({KAFKA_BOOTSTRAP})")
+            for msg in consumer:
+                LIVE["signals"].append(msg.value)
+        except Exception as e:
+            LIVE["connected"] = False
+            log.warning(f"Mode live : Kafka injoignable ({type(e).__name__}) — retry dans 10s")
+            time.sleep(10)
 
 
 def _k(t: str) -> str:
@@ -104,6 +135,13 @@ async def lifespan(app: FastAPI):
 
     ready = [t["symbol"] for t in trained_tickers()]
     log.info(f"API prete — tickers exploitables : {ready}")
+
+    # Mode live : thread de consommation Kafka (désactivé sans KAFKA_BOOTSTRAP)
+    if LIVE["enabled"]:
+        threading.Thread(target=_live_consumer_loop, daemon=True).start()
+    else:
+        log.info("Mode live désactivé (KAFKA_BOOTSTRAP non défini)")
+
     yield
 
 
@@ -142,18 +180,39 @@ def load_df(ticker: str, period: str = "1Y") -> pd.DataFrame:
 
 
 def lstm_predict_series(df: pd.DataFrame, ticker: str) -> np.ndarray:
-    """Génère les prédictions LSTM auto-régressives sur tout le df."""
+    """
+    Génère les prédictions LSTM sur tout le df en UN SEUL predict batché
+    (vs un appel par jour : ~30x plus rapide, indispensable pour la démo live).
+    Le modèle prédit le rendement J+1 (%) → prix = Close_J × (1 + r̂/100).
+    Les SEQ_LEN premiers jours gardent le prix réel (pas assez d'historique).
+    """
     k = _k(ticker)
     mdl, scl = store[f"lstm_{k}"], store[f"scaler_{k}"]
     feats  = [f for f in FEATURES if f in df.columns]
     scaled = scl.transform(df[feats].values)
-    preds  = df["Close"].values.copy()
-    for i in range(SEQ_LEN, len(scaled)):
-        seq = scaled[i-SEQ_LEN:i].reshape(1, SEQ_LEN, len(feats))
-        p   = mdl.predict(seq, verbose=0)[0][0]
-        dummy = np.zeros((1, len(feats))); dummy[0,0] = p
-        preds[i] = scl.inverse_transform(dummy)[0,0]
+    closes = df["Close"].values.astype(float)
+    preds  = closes.copy()
+    if len(scaled) <= SEQ_LEN:
+        return preds
+    windows = np.stack([scaled[i-SEQ_LEN:i] for i in range(SEQ_LEN, len(scaled))])
+    r_hat   = mdl.predict(windows, verbose=0, batch_size=256).flatten()
+    preds[SEQ_LEN:] = closes[SEQ_LEN-1:-1] * (1 + r_hat / TARGET_SCALE)
     return preds
+
+
+def ppo_action_proba(agent, obs: np.ndarray) -> tuple[int, float]:
+    """
+    Action déterministe + VRAIE probabilité issue de la policy PPO
+    (remplace l'ancienne confiance codée en dur).
+    L'action déterministe = argmax de la distribution Catégorielle,
+    identique à agent.predict(obs, deterministic=True).
+    """
+    import torch
+    obs_t, _ = agent.policy.obs_to_tensor(obs)
+    with torch.no_grad():
+        probs = agent.policy.get_distribution(obs_t).distribution.probs.cpu().numpy()[0]
+    action = int(np.argmax(probs))
+    return action, float(probs[action])
 
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
@@ -291,16 +350,25 @@ def predict(ticker: str = "AAPL", days: int = 14):
     scaled = scl.transform(df[feats].values)
     seq    = scaled[-SEQ_LEN:].copy()
 
+    # Prévision autorégressive : le modèle prédit le rendement J+1 (%),
+    # le prix est reconstruit pas à pas : prix × (1 + r̂/100).
+    # Limite documentée : seul Close est mis à jour dans la fenêtre,
+    # les indicateurs techniques restent gelés.
     preds, last_date = [], df.index[-1]
+    price = float(df["Close"].iloc[-1])
     for i in range(days):
-        inp = seq.reshape(1, SEQ_LEN, len(feats))
-        p   = mdl.predict(inp, verbose=0)[0][0]
-        dummy = np.zeros((1, len(feats))); dummy[0,0] = p
-        price = scl.inverse_transform(dummy)[0,0]
+        inp   = seq.reshape(1, SEQ_LEN, len(feats))
+        r_hat = float(mdl.predict(inp, verbose=0)[0][0])
+        price = price * (1 + r_hat / TARGET_SCALE)
         d = last_date + pd.Timedelta(days=i+1)
         while d.weekday() >= 5: d += pd.Timedelta(days=1)
-        preds.append({"date": d.strftime("%Y-%m-%d"), "price": round(float(price), 2)})
-        new_row = seq[-1].copy(); new_row[0] = p
+        preds.append({"date": d.strftime("%Y-%m-%d"),
+                      "price": round(price, 2),
+                      "return_pct": round(r_hat, 3)})
+        # Ré-injecte le nouveau prix (re-scalé) dans la fenêtre glissante
+        dummy = np.zeros((1, len(feats))); dummy[0, 0] = price
+        new_close_scaled = scl.transform(dummy)[0, 0]
+        new_row = seq[-1].copy(); new_row[0] = new_close_scaled
         seq = np.vstack([seq[1:], new_row])
 
     history = [{"date": d.strftime("%Y-%m-%d"), "close": round(float(r["Close"]), 2)}
@@ -334,19 +402,19 @@ def strategy(ticker: str = "AAPL", period: str = "3M"):
     signals, done = [], False
     AMAP = {0: "HOLD", 1: "BUY", 2: "SELL"}
     while not done:
-        act, _ = agent.predict(obs, deterministic=True)
+        act, conf = ppo_action_proba(agent, obs)
         idx = env.idx
         if idx < len(df_env):
             row = df_env.iloc[idx]
             signals.append({
                 "date":       dates.iloc[idx].strftime("%Y-%m-%d"),
-                "action":     AMAP[int(act)],
+                "action":     AMAP[act],
                 "price":      round(float(row["Close"]), 2),
-                "confidence": 0.78,
+                "confidence": round(conf, 3),
                 "rsi":        round(float(row.get("RSI", 50)), 1),
                 "macd":       round(float(row.get("MACD", 0)), 4),
             })
-        obs, _, done, _, _ = env.step(int(act))
+        obs, _, done, _, _ = env.step(act)
 
     buy  = sum(1 for s in signals if s["action"] == "BUY")
     sell = sum(1 for s in signals if s["action"] == "SELL")
@@ -417,4 +485,38 @@ def portfolio_history(ticker: str = "AAPL", period: str = "1Y"):
         "data":        data,
         "returns_pct": returns_pct,
         "has_rl":      True,
+    }
+
+
+# ─── Endpoints LIVE (streaming Kafka) ────────────────────────────────────────
+
+@app.get("/live/status")
+def live_status():
+    """État du pipeline streaming : Kafka joignable ? signaux reçus ?"""
+    last = LIVE["signals"][-1] if LIVE["signals"] else None
+    return {
+        "enabled":   LIVE["enabled"],
+        "connected": LIVE["connected"],
+        "buffered":  len(LIVE["signals"]),
+        "tickers":   sorted({s["ticker"] for s in LIVE["signals"]}),
+        "last":      last,
+    }
+
+
+@app.get("/live/signals")
+def live_signals(ticker: str | None = None, limit: int = 120):
+    """
+    Derniers signaux du consumer Kafka (topic `signals`), du plus ancien
+    au plus récent. Le frontend les récupère en polling pour le mode LIVE.
+    """
+    if not LIVE["enabled"]:
+        raise HTTPException(503, "Mode live désactivé (KAFKA_BOOTSTRAP non défini)")
+    limit = max(1, min(limit, 1000))
+    sigs = list(LIVE["signals"])
+    if ticker:
+        sigs = [s for s in sigs if s["ticker"] == ticker]
+    return {
+        "connected": LIVE["connected"],
+        "count":     len(sigs[-limit:]),
+        "signals":   sigs[-limit:],
     }

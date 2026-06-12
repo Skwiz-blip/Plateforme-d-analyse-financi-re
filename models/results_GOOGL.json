@@ -1,28 +1,6 @@
 {
   "ticker": "GOOGL",
-  "timestamp": "2026-05-17T13:39:58.871417",
-  "lstm": {
-    "rmse": 38.4109,
-    "mae": 32.7666,
-    "mape": 3.3346,
-    "directional_accuracy": 50.85,
-    "epochs": 50,
-    "train_samples": 944,
-    "test_samples": 119
-  },
-  "features": [
-    "Close",
-    "Volume",
-    "EMA_20",
-    "EMA_50",
-    "RSI",
-    "MACD",
-    "MACD_signal",
-    "BB_width",
-    "ATR",
-    "Vol_ratio"
-  ],
-  "seq_len": 60,
+  "timestamp": "2026-06-12T15:50:12.894251",
   "rl_agent": {
     "total_return": 26.34,
     "sharpe_ratio": 1.9862,

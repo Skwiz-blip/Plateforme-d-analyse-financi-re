@@ -1,37 +1,3 @@
-"""
-╔══════════════════════════════════════════════════════════════╗
-║           QuantMind — Pipeline d'Entraînement Complet        ║
-║           LSTM (Prédiction) + PPO RL (Stratégie)             ║
-╚══════════════════════════════════════════════════════════════╝
-
-USAGE:
-    # Pipeline complet (recommandé)
-    python train.py --ticker AAPL --data-path "C:/chemin/vers/Data"
-
-    # Étapes séparées
-    python train.py --ticker AAPL --data-path "C:/chemin/vers/Data" --step data
-    python train.py --ticker AAPL --step lstm
-    python train.py --ticker AAPL --step rl
-    python train.py --ticker AAPL --step all   (défaut)
-
-    # Plusieurs tickers
-    python train.py --all-tickers --data-path "C:/chemin/vers/Data"
-
-DATASET KAGGLE:
-    Télécharge depuis :
-    https://www.kaggle.com/datasets/borismarjanovic/price-volume-data-for-all-us-stocks-etfs
-    Le dossier Data/ doit contenir Stocks/ et ETFs/
-    Format fichier : aapl.us.txt (Date,Open,High,Low,Close,Volume,OpenInt)
-
-OUTPUTS:
-    models/lstm_{TICKER}.keras       ← Réseau LSTM entraîné
-    models/scaler_{TICKER}.pkl       ← Normalisation (MinMaxScaler)
-    models/ppo_{TICKER}.zip          ← Agent RL entraîné
-    models/results_{TICKER}.json     ← Métriques LSTM + RL
-    data/processed/{TICKER}.csv      ← Données + indicateurs techniques
-"""
-
-# ─── Imports ─────────────────────────────────────────────────────────────────
 import os
 import sys
 import json
@@ -42,7 +8,6 @@ warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 from datetime import datetime
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
@@ -59,6 +24,7 @@ for d in [MODELS_DIR, DATA_RAW_DIR, DATA_PROC_DIR]:
     os.makedirs(d, exist_ok=True)
 
 SEQ_LEN  = 60           # Fenêtre temporelle LSTM (jours)
+TARGET_SCALE = 100.0    # Cible LSTM = rendement J+1 exprimé en % (stationnaire)
 FEATURES = [            # Features utilisées pour LSTM + RL
     "Close", "Volume",
     "EMA_20", "EMA_50",
@@ -72,9 +38,7 @@ TICKERS_KAGGLE = {
     "MSFT":    "msft.us.txt",
     "GOOGL":   "googl.us.txt",
     "AMZN":    "amzn.us.txt",
-    "NVDA":    "nvda.us.txt",
-    "BTC-USD": None,   # yfinance only
-    "ETH-USD": None,   # yfinance only
+    "NVDA":    "nvda.us.txt", 
 }
 
 
@@ -93,8 +57,7 @@ def load_kaggle_file(ticker: str, data_path: str) -> pd.DataFrame | None:
     filename = TICKERS_KAGGLE.get(ticker)
     if not filename:
         return None
-
-    # Chercher dans Stocks/ puis racine
+ 
     candidates = [
         os.path.join(data_path, "Stocks", filename),
         os.path.join(data_path, filename),
@@ -115,20 +78,6 @@ def load_kaggle_file(ticker: str, data_path: str) -> pd.DataFrame | None:
     plog(f"⚠  Fichier Kaggle introuvable : {filename}", 2)
     return None
 
-
-def fetch_yfinance(ticker: str, since: pd.Timestamp | None = None) -> pd.DataFrame:
-    """Complète ou remplace avec yfinance."""
-    try:
-        t = yf.Ticker(ticker)
-        if since is not None:
-            df = t.history(start=since, auto_adjust=True)
-        else:
-            df = t.history(period="5y", auto_adjust=True)
-        df.index = pd.to_datetime(df.index).tz_localize(None)
-        return df[["Open", "High", "Low", "Close", "Volume"]].sort_index()
-    except Exception as e:
-        plog(f"⚠  yfinance erreur : {e}", 2)
-        return pd.DataFrame()
 
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -194,7 +143,6 @@ def step_data(ticker: str, data_path: str | None) -> pd.DataFrame:
 
     Priorité :
       1. Fichier Kaggle (historique long, jusqu'en 2017)
-      2. yfinance (complète avec données récentes / crypto)
     """
     plog(f"\n{'─'*55}")
     plog(f"ÉTAPE 1 — Données : {ticker}")
@@ -207,20 +155,9 @@ def step_data(ticker: str, data_path: str | None) -> pd.DataFrame:
             plog(f"✓ Kaggle  : {len(kaggle_df)} jours "
                 f"({kaggle_df.index.min().date()} → {kaggle_df.index.max().date()})", 1)
 
-    # Compléter / remplacer avec yfinance
-    since = kaggle_df.index.max() if kaggle_df is not None else None
-    yf_df = fetch_yfinance(ticker, since)
-
-    if len(yf_df) > 0:
-        plog(f"✓ yfinance: {len(yf_df)} jours de plus", 1)
-        if kaggle_df is not None:
-            combined = pd.concat([kaggle_df, yf_df])
-            combined = combined[~combined.index.duplicated(keep="last")].sort_index()
-        else:
-            combined = yf_df
-    elif kaggle_df is not None:
+    # Utiliser uniquement les fichiers Kaggle (yfinance supprimé)
+    if kaggle_df is not None:
         combined = kaggle_df
-        plog("⚠  yfinance indisponible — données Kaggle seules", 1)
     else:
         raise RuntimeError(f"Aucune donnée trouvée pour {ticker}")
 
@@ -248,12 +185,17 @@ def step_data(ticker: str, data_path: str | None) -> pd.DataFrame:
 #  PARTIE 2 — LSTM : Architecture + Entraînement + Évaluation
 # ══════════════════════════════════════════════════════════════════════════════
 
-def build_sequences(data: np.ndarray):
-    """Crée les séquences glissantes (window = SEQ_LEN → cible J+1)."""
+def build_sequences(data: np.ndarray, target: np.ndarray):
+    """
+    Crée les séquences glissantes : fenêtre des SEQ_LEN derniers jours → cible au jour i.
+    target[i] = rendement (%) du jour i par rapport au jour i-1.
+    Prédire le rendement (stationnaire) plutôt que le prix brut (non-stationnaire)
+    évite la dérive du modèle quand les prix sortent de la plage d'entraînement.
+    """
     X, y = [], []
     for i in range(SEQ_LEN, len(data)):
         X.append(data[i - SEQ_LEN:i])
-        y.append(data[i, 0])     # Close = colonne 0
+        y.append(target[i])
     return np.array(X), np.array(y)
 
 
@@ -263,6 +205,40 @@ def split_temporal(X, y, train=0.80, val=0.10):
     t1  = int(n * train)
     t2  = int(n * (train + val))
     return (X[:t1], y[:t1]), (X[t1:t2], y[t1:t2]), (X[t2:], y[t2:])
+
+
+def sanitize_keras_file(path: str) -> None:
+    """
+    Compatibilité Keras : retire du fichier .keras les champs ajoutés par les
+    versions récentes (renorm*, quantization_config) que le Keras 3.0 du
+    conteneur Docker (TF 2.16.1) ne reconnaît pas. Ces champs valent leur
+    valeur par défaut chez nous → suppression sans aucune perte.
+    """
+    import zipfile
+    bad = {"renorm", "renorm_clipping", "renorm_momentum", "quantization_config"}
+
+    def clean(obj):
+        if isinstance(obj, dict):
+            for k in list(obj):
+                if k in bad:
+                    obj.pop(k)
+                else:
+                    clean(obj[k])
+        elif isinstance(obj, list):
+            for v in obj:
+                clean(v)
+
+    tmp = path + ".tmp"
+    with zipfile.ZipFile(path) as zin, \
+         zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            data = zin.read(item.filename)
+            if item.filename == "config.json":
+                cfg = json.loads(data)
+                clean(cfg)
+                data = json.dumps(cfg).encode()
+            zout.writestr(item, data)
+    os.replace(tmp, path)
 
 
 def build_lstm(seq_len: int, n_features: int):
@@ -297,18 +273,40 @@ def build_lstm(seq_len: int, n_features: int):
     return model
 
 
-def inv_close(values: np.ndarray, scaler, n_features: int) -> np.ndarray:
-    """Inverse-transform uniquement la colonne Close (index 0)."""
-    dummy = np.zeros((len(values), n_features))
-    dummy[:, 0] = values
-    return scaler.inverse_transform(dummy)[:, 0]
-
-
 def directional_accuracy(y_true, y_pred) -> float:
     """% de fois où la direction (hausse/baisse) est correctement prédite."""
     real_dir  = np.diff(y_true)
     pred_dir  = np.diff(y_pred)
     return (np.sign(real_dir) == np.sign(pred_dir)).mean() * 100
+
+
+def evaluate_predictions(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    """Métriques standard (RMSE, MAE, MAPE, Dir.Acc) — mêmes pour tous les modèles."""
+    return {
+        "rmse": round(float(np.sqrt(mean_squared_error(y_true, y_pred))), 4),
+        "mae":  round(float(mean_absolute_error(y_true, y_pred)), 4),
+        "mape": round(float(np.mean(np.abs((y_true - y_pred) / (y_true + 1e-10))) * 100), 4),
+        "directional_accuracy": round(float(directional_accuracy(y_true, y_pred)), 2),
+    }
+
+
+def evaluate_return_model(r_true_pct: np.ndarray, r_pred_pct: np.ndarray,
+                          prev_close: np.ndarray) -> dict:
+    """
+    Évalue un modèle qui prédit le rendement J+1 (%) :
+      - RMSE/MAE/MAPE sur le PRIX reconstruit (prix = Close_J × (1 + r̂/100))
+        → directement comparable à la baseline naïve,
+      - Directional Accuracy sur le SIGNE du rendement prédit (la vraie
+        information exploitée par l'agent RL).
+    """
+    r_true = np.asarray(r_true_pct, dtype=float)
+    r_pred = np.asarray(r_pred_pct, dtype=float)
+    price_true = prev_close * (1 + r_true / TARGET_SCALE)
+    price_pred = prev_close * (1 + r_pred / TARGET_SCALE)
+    m = evaluate_predictions(price_true, price_pred)
+    m["directional_accuracy"] = round(
+        float((np.sign(r_pred) == np.sign(r_true)).mean() * 100), 2)
+    return m
 
 
 def step_lstm(ticker: str, df: pd.DataFrame | None = None) -> dict:
@@ -344,6 +342,14 @@ def step_lstm(ticker: str, df: pd.DataFrame | None = None) -> dict:
     data = df[feats].values
     plog(f"→ Features ({n_features}) : {', '.join(feats)}", 1)
 
+    # Cible : rendement du jour en % (stationnaire), pas le prix brut
+    if "Return" not in df.columns:
+        df["Return"] = df["Close"].pct_change().fillna(0.0)
+    returns_pct = df["Return"].values.astype(float) * TARGET_SCALE
+    closes      = df["Close"].values.astype(float)
+    plog(f"→ Cible : rendement J+1 (%) — moy {returns_pct.mean():.3f}, "
+         f"σ {returns_pct.std():.3f}", 1)
+
     # Normalisation — fit uniquement sur 80% train pour éviter data leakage
     train_end = int(len(data) * 0.80)
     scaler = MinMaxScaler(feature_range=(0, 1))
@@ -355,10 +361,14 @@ def step_lstm(ticker: str, df: pd.DataFrame | None = None) -> dict:
         pickle.dump(scaler, f)
     plog(f"✓ Scaler sauvegardé → {scaler_path}", 1)
 
-    # Séquences + split
-    X, y = build_sequences(data_scaled)
+    # Séquences + split (y = rendement %, X = fenêtres de features scalées)
+    X, y = build_sequences(data_scaled, returns_pct)
     (X_tr, y_tr), (X_val, y_val), (X_te, y_te) = split_temporal(X, y)
     plog(f"✓ Train:{X_tr.shape}  Val:{X_val.shape}  Test:{X_te.shape}", 1)
+
+    # Index global (dans df) de chaque échantillon — pour reconstruire les prix
+    sample_idx = np.arange(SEQ_LEN, len(data_scaled))
+    idx_te = sample_idx[int(len(X) * 0.90):]          # même découpe que split_temporal
 
     # Modèle
     model      = build_lstm(SEQ_LEN, n_features)
@@ -381,42 +391,64 @@ def step_lstm(ticker: str, df: pd.DataFrame | None = None) -> dict:
         callbacks=callbacks, verbose=1,
     )
 
-    # Évaluation
+    # Évaluation — LSTM + baselines sur le MÊME test set (comparaison honnête)
     model = load_model(model_path)
-    y_pred_sc = model.predict(X_te, verbose=0).flatten()
-    y_te_real  = inv_close(y_te,       scaler, n_features)
-    y_pred_real = inv_close(y_pred_sc, scaler, n_features)
-
-    rmse  = float(np.sqrt(mean_squared_error(y_te_real, y_pred_real)))
-    mae   = float(mean_absolute_error(y_te_real, y_pred_real))
-    mape  = float(np.mean(np.abs((y_te_real - y_pred_real) / (y_te_real + 1e-10))) * 100)
-    da    = float(directional_accuracy(y_te_real, y_pred_real))
+    r_pred = model.predict(X_te, verbose=0).flatten()   # rendements prédits (%)
     epochs_done = len(history.history["loss"])
+
+    prev_close  = closes[idx_te - 1]                    # Close du jour J (connu)
+    y_te_real   = prev_close * (1 + y_te   / TARGET_SCALE)   # prix réels J+1
+    y_pred_real = prev_close * (1 + r_pred / TARGET_SCALE)   # prix reconstruits
+
+    lstm_m = evaluate_return_model(y_te, r_pred, prev_close)
+
+    # Baseline 1 — Naïve (persistance) : r̂ = 0 → prix prédit = Close de J
+    naive_m = evaluate_return_model(y_te, np.zeros_like(y_te), prev_close)
+    naive_m["directional_accuracy"] = None   # ne prédit aucune direction
+
+    # Baseline 2 — Momentum : r̂ = rendement de la veille
+    mom_m = evaluate_return_model(y_te, returns_pct[idx_te - 1], prev_close)
+
+    # Baseline 3 — Régression linéaire (features du dernier jour → rendement)
+    from sklearn.linear_model import LinearRegression
+    linreg = LinearRegression().fit(X_tr[:, -1, :], y_tr)
+    lin_m = evaluate_return_model(y_te, linreg.predict(X_te[:, -1, :]), prev_close)
 
     metrics = {
         "ticker": ticker,
+        "target": "rendement J+1 (%)",
         "lstm": {
-            "rmse": round(rmse, 4),
-            "mae":  round(mae, 4),
-            "mape": round(mape, 4),
-            "directional_accuracy": round(da, 2),
+            **lstm_m,
             "epochs": epochs_done,
             "train_samples": int(X_tr.shape[0]),
             "test_samples":  int(X_te.shape[0]),
+        },
+        "baselines": {
+            "naive_persistence": naive_m,
+            "momentum":          mom_m,
+            "linear_regression": lin_m,
         },
         "features": feats,
         "seq_len": SEQ_LEN,
     }
 
-    plog(f"\n{'─'*40}", 1)
-    plog("MÉTRIQUES LSTM", 1)
-    plog(f"{'─'*40}", 1)
-    plog(f"  RMSE                 : ${rmse:.2f}", 1)
-    plog(f"  MAE                  : ${mae:.2f}", 1)
-    plog(f"  MAPE                 : {mape:.2f}%", 1)
-    plog(f"  Directional Accuracy : {da:.1f}%  ← métrique clé", 1)
-    plog(f"  Epochs               : {epochs_done}", 1)
-    plog(f"✓ Modèle sauvegardé → {model_path}", 1)
+    plog(f"\n{'─'*60}", 1)
+    plog("COMPARAISON DES MODÈLES (test set, prix reconstruits)", 1)
+    plog(f"{'─'*60}", 1)
+    plog(f"  {'Modèle':<22} {'RMSE':>8} {'MAE':>8} {'MAPE%':>7} {'Dir.Acc%':>9}", 1)
+    plog(f"  {'─'*56}", 1)
+    for name, m in [("Naïve (persistance)", naive_m),
+                    ("Momentum (J-1)",      mom_m),
+                    ("Régression linéaire", lin_m),
+                    ("LSTM (rendement)",    lstm_m)]:
+        da = f"{m['directional_accuracy']:>9.1f}" if m["directional_accuracy"] is not None else f"{'—':>9}"
+        plog(f"  {name:<22} {m['rmse']:>8.2f} {m['mae']:>8.2f} "
+             f"{m['mape']:>7.2f} {da}", 1)
+    plog(f"\n  Epochs LSTM : {epochs_done}", 1)
+
+    # Compatibilité Docker : purge des champs Keras récents avant livraison
+    sanitize_keras_file(model_path)
+    plog(f"✓ Modèle sauvegardé (compatible Keras 3.0) → {model_path}", 1)
 
     return metrics, y_pred_real, y_te_real, df
 
@@ -450,38 +482,42 @@ def buy_and_hold_metrics(df: pd.DataFrame, initial: float = 10_000.0) -> dict:
 
 def get_lstm_predictions(df: pd.DataFrame, ticker: str) -> np.ndarray:
     """
-    Génère les prédictions LSTM sur tout le dataset.
+    Génère les prédictions LSTM sur tout le dataset (un seul predict batché).
     Utilisées comme feature d'entrée de l'agent RL (couplage).
+
+    Les SEQ_LEN premiers jours n'ont pas assez d'historique : le prix réel
+    est conservé (ratio préd/prix = 1 → signal neutre pour l'agent).
+    Pas de fallback silencieux : si le LSTM est absent, on s'arrête.
     """
     model_path  = os.path.join(MODELS_DIR, f"lstm_{ticker.replace('-','_')}.keras")
     scaler_path = os.path.join(MODELS_DIR, f"scaler_{ticker.replace('-','_')}.pkl")
 
-    preds = df["Close"].values.copy()   # fallback : prix réels
-
     if not os.path.exists(model_path) or not os.path.exists(scaler_path):
-        plog("⚠  Modèle LSTM introuvable — RL utilisera les prix réels", 2)
+        raise RuntimeError(
+            f"Modèle LSTM introuvable pour {ticker}. "
+            f"Lance d'abord : python train.py --ticker {ticker} --step lstm"
+        )
+
+    import tensorflow as tf
+    model = tf.keras.models.load_model(model_path)
+    with open(scaler_path, "rb") as f:
+        scaler = pickle.load(f)
+
+    feats  = [f for f in FEATURES if f in df.columns]
+    scaled = scaler.transform(df[feats].values)
+    closes = df["Close"].values.astype(float)
+    preds  = closes.copy()
+
+    if len(scaled) <= SEQ_LEN:
         return preds
 
-    try:
-        import tensorflow as tf
-        model = tf.keras.models.load_model(model_path)
-        with open(scaler_path, "rb") as f:
-            scaler = pickle.load(f)
+    # Toutes les fenêtres glissantes d'un coup → un seul predict (rapide).
+    # Le modèle prédit le rendement (%) → prix reconstruit = Close_J × (1 + r̂/100)
+    windows = np.stack([scaled[i - SEQ_LEN:i] for i in range(SEQ_LEN, len(scaled))])
+    r_hat   = model.predict(windows, verbose=0, batch_size=256).flatten()
+    preds[SEQ_LEN:] = closes[SEQ_LEN - 1:-1] * (1 + r_hat / TARGET_SCALE)
 
-        feats = [f for f in FEATURES if f in df.columns]
-        scaled = scaler.transform(df[feats].values)
-
-        for i in range(SEQ_LEN, len(scaled)):
-            seq = scaled[i - SEQ_LEN:i].reshape(1, SEQ_LEN, len(feats))
-            p   = model.predict(seq, verbose=0)[0][0]
-            dummy = np.zeros((1, len(feats)))
-            dummy[0, 0] = p
-            preds[i] = scaler.inverse_transform(dummy)[0, 0]
-
-        plog(f"✓ {len(scaled) - SEQ_LEN} prédictions LSTM générées pour RL", 2)
-    except Exception as e:
-        plog(f"⚠  Erreur LSTM pour RL : {e} — utilisation des prix réels", 2)
-
+    plog(f"✓ {len(r_hat)} prédictions LSTM générées pour RL (batch)", 2)
     return preds
 
 
