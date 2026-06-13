@@ -1,13 +1,13 @@
 {
   "ticker": "AMZN",
-  "timestamp": "2026-06-12T16:11:08.093929",
+  "timestamp": "2026-06-12T23:38:39.587959",
   "rl_agent": {
-    "total_return": 12.11,
-    "sharpe_ratio": 0.9602,
-    "max_drawdown": -10.91,
-    "win_rate": 50.0,
-    "n_trades": 33,
-    "final_balance": 11210.74
+    "total_return": 37.81,
+    "sharpe_ratio": 2.0443,
+    "max_drawdown": -8.75,
+    "win_rate": 0.0,
+    "n_trades": 1,
+    "final_balance": 13781.14
   },
   "buy_and_hold": {
     "total_return": 49.25,

@@ -1,13 +1,13 @@
 {
   "ticker": "NVDA",
-  "timestamp": "2026-06-12T16:33:37.229723",
+  "timestamp": "2026-06-12T23:58:32.495737",
   "rl_agent": {
-    "total_return": 12.48,
-    "sharpe_ratio": 2.3229,
+    "total_return": 12.41,
+    "sharpe_ratio": 2.308,
     "max_drawdown": -2.28,
     "win_rate": 0.0,
     "n_trades": 1,
-    "final_balance": 11248.47
+    "final_balance": 11240.9
   },
   "buy_and_hold": {
     "total_return": 136.18,

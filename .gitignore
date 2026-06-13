@@ -1,2 +1,39 @@
+# ─── Dataset Kaggle brut (NE PAS committer — fourni via le lien dans le README) ───
+ETFs/
+Stocks/
+data/ETFs/
+data/Stocks/
+data/raw/
 
+# ─── Environnement & caches Python ───
+.venv/
+venv/
+__pycache__/
+*.pyc
+.dist/
+.ipynb_checkpoints/
+
+# ─── Outils / IDE ───
+.claude/
+.vscode/
+.idea/
+
+# ─── Hacks locaux (spécifiques à une machine) ───
 docker-compose.override.yml
+
+# ─── Documents internes de l'équipe (pas des livrables) ───
+PITCH.md
+PITCH_EQUIPE.md
+PRESENTATION.md
+DEMARCHE.md
+BUSINESS_LOGIC.md
+
+# ─── Artefacts d'entraînement parasites (le système n'en a pas besoin) ───
+models/training.log
+models/best_model.zip
+models/evaluations.npz
+
+# ─── Fichiers parasites divers ───
+output.png
+output_*.png
+*.log

@@ -144,9 +144,9 @@ const PAGES=[
   {id:"guide",     label:"Guide"},
   {id:"dashboard", label:"Dashboard"},
   {id:"live",      label:"Live"},
-  {id:"model",     label:"Mod\u00e8le"},
+  {id:"model",     label:"Modèle"},
   {id:"perf",      label:"Performance"},
-  {id:"data",      label:"Donn\u00e9es"},
+  {id:"data",      label:"Données"},
 ];
 
 const Tip=({active,payload,label})=>{
@@ -163,35 +163,35 @@ function CopyCmd({cmd}){
   const [ok,setOk]=useState(false);
   return(<div className="cmd" onClick={()=>{navigator.clipboard.writeText(cmd);setOk(true);setTimeout(()=>setOk(false),2000)}}>
     <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cmd}</span>
-    <span style={{fontFamily:'var(--mono)',fontSize:9,color:ok?'var(--green)':'var(--t3)',flexShrink:0,marginLeft:8}}>{ok?'\u2713 copi\u00e9':'copier'}</span>
+    <span style={{fontFamily:'var(--mono)',fontSize:9,color:ok?'var(--green)':'var(--t3)',flexShrink:0,marginLeft:8}}>{ok?'✓ copié':'copier'}</span>
   </div>);
 }
 
 function GuidePage({api}){
   const steps=[
-    {title:"Installer les d\u00e9pendances",desc:"TensorFlow, FastAPI, stable-baselines3, yfinance, pandas, scikit-learn.",cmd:"pip install -r requirements.txt"},
-    {title:"Charger le dataset Kaggle",desc:"Remplace le chemin par ton dossier Data/ contenant Stocks/ et ETFs/. yfinance compl\u00e8te avec donn\u00e9es r\u00e9centes.",cmd:'python train.py --ticker AAPL --data-path "chemin/vers/Data" --step data'},
-    {title:"Entra\u00eener le LSTM",desc:"LSTM 3 couches 128->64->32, EarlyStopping, ReduceLROnPlateau. Sauvegarde lstm_AAPL.h5 + scaler_AAPL.pkl.",cmd:"python train.py --ticker AAPL --step lstm"},
-    {title:"Entra\u00eener l'agent RL (PPO)",desc:"Environnement Gym custom + PPO 100k steps. Les pr\u00e9dictions LSTM sont features de l'agent (couplage LSTM\u2194RL).",cmd:"python train.py --ticker AAPL --step rl"},
-    {title:"Lancer l'API FastAPI",desc:"Charge tous les mod\u00e8les au d\u00e9marrage. Swagger sur localhost:8000/docs.",cmd:"uvicorn api:app --reload --port 8000"},
+    {title:"Installer les dépendances",desc:"TensorFlow, FastAPI, stable-baselines3, yfinance, pandas, scikit-learn.",cmd:"pip install -r requirements.txt"},
+    {title:"Charger le dataset Kaggle",desc:"Remplace le chemin par ton dossier Data/ contenant Stocks/ et ETFs/. yfinance complète avec données récentes.",cmd:'python train.py --ticker AAPL --data-path "chemin/vers/Data" --step data'},
+    {title:"Entraîner le LSTM",desc:"LSTM 3 couches 128->64->32, EarlyStopping, ReduceLROnPlateau. Sauvegarde lstm_AAPL.h5 + scaler_AAPL.pkl.",cmd:"python train.py --ticker AAPL --step lstm"},
+    {title:"Entraîner l'agent RL (PPO)",desc:"Environnement Gym custom + PPO 100k steps. Les prédictions LSTM sont features de l'agent (couplage LSTM↔RL).",cmd:"python train.py --ticker AAPL --step rl"},
+    {title:"Lancer l'API FastAPI",desc:"Charge tous les modèles au démarrage. Swagger sur localhost:8000/docs.",cmd:"uvicorn api:app --reload --port 8000"},
     {title:"Ouvrir ce dashboard",desc:"Double-clique sur frontend/index.html.",cmd:"ouvre frontend/index.html dans ton navigateur"},
   ];
   return(<div>
     <div style={{marginBottom:18}}>
-      <div style={{fontSize:17,fontWeight:600,marginBottom:4}}>Guide de d\u00e9marrage</div>
-      <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--t3)'}}>Suis ces \u00e9tapes dans l'ordre pour lancer QuantMind</div>
+      <div style={{fontSize:17,fontWeight:600,marginBottom:4}}>Guide de démarrage</div>
+      <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--t3)'}}>Suis ces étapes dans l'ordre pour lancer QuantMind</div>
     </div>
-    {api?<div className="banner bok" style={{marginBottom:16}}>\u2713 API connect\u00e9e \u2014 navigue vers Dashboard, Performance ou Donn\u00e9es</div>
-       :<div className="banner">\u26a0 API hors ligne \u2014 suis les \u00e9tapes ci-dessous<br/>Lance : <code>uvicorn api:app --reload --port 8000</code></div>}
+    {api?<div className="banner bok" style={{marginBottom:16}}>✓ API connectée — navigue vers Dashboard, Performance ou Données</div>
+       :<div className="banner">⚠ API hors ligne — suis les étapes ci-dessous<br/>Lance : <code>uvicorn api:app --reload --port 8000</code></div>}
     <div className="card" style={{marginBottom:14}}>
       <div className="card-title">Structure du dataset Kaggle</div>
-      <pre style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--t2)',lineHeight:1.9}}>{`  Data/\n  \u251c\u2500\u2500 Stocks/\n  \u2502   \u251c\u2500\u2500 aapl.us.txt\n  \u2502   \u251c\u2500\u2500 tsla.us.txt\n  \u2502   \u251c\u2500\u2500 msft.us.txt\n  \u2502   \u251c\u2500\u2500 googl.us.txt\n  \u2502   \u2514\u2500\u2500 nvda.us.txt\n  \u2514\u2500\u2500 ETFs/  (non utilis\u00e9s)`}</pre>
-      <div style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--t3)',marginTop:8}}>Format : Date,Open,High,Low,Close,Volume,OpenInt \u2014 Pas de base de donn\u00e9es n\u00e9cessaire (CSV uniquement)</div>
+      <pre style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--t2)',lineHeight:1.9}}>{`  Data/\n  ├── Stocks/\n  │   ├── aapl.us.txt\n  │   ├── tsla.us.txt\n  │   ├── msft.us.txt\n  │   ├── googl.us.txt\n  │   └── nvda.us.txt\n  └── ETFs/  (non utilisés)`}</pre>
+      <div style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--t3)',marginTop:8}}>Format : Date,Open,High,Low,Close,Volume,OpenInt — Pas de base de données nécessaire (CSV uniquement)</div>
     </div>
     <div className="steps">
       {steps.map((s,i)=>(
         <div className="step" key={i}>
-          <div className={`snum${api&&i<5?' ok':''}`}>{api&&i<5?'\u2713':i+1}</div>
+          <div className={`snum${api&&i<5?' ok':''}`}>{api&&i<5?'✓':i+1}</div>
           <div style={{flex:1}}>
             <div className="stitle">{s.title}</div>
             <div className="sdesc">{s.desc}</div>
@@ -223,7 +223,7 @@ function DashboardPage({ticker,period,api}){
     });
   },[ticker,period,api]);
 
-  if(!api) return(<div className="banner">API hors ligne \u2014 voir onglet Guide</div>);
+  if(!api) return(<div className="banner">API hors ligne — voir onglet Guide</div>);
   const {sum,chart,signals,loading}=st;
   if(loading) return(<div className="loader"><div className="spin"/>Chargement...</div>);
   const chg=sum?.change_pct, last=signals[signals.length-1];
@@ -232,12 +232,12 @@ function DashboardPage({ticker,period,api}){
   return(<div>
     <div className="grid g4" style={{marginBottom:14}}>
       {[
-        {v:`$${sum?.price?.toFixed(2)??'\u2014'}`,l:'Prix actuel',h:`52s: ${sum?.high_52w??'\u2014'} / ${sum?.low_52w??'\u2014'}`,c:''},
-        {v:`${chg>=0?'+':''}${chg?.toFixed(2)??'\u2014'}%`,l:'Variation 1J',h:`$${sum?.change?.toFixed(2)??'\u2014'}`,c:chg>=0?'g':'r'},
-        {v:`${sum?.rsi?.toFixed(0)??'\u2014'}`,l:'RSI (14)',h:sum?.rsi>70?'Surachat':sum?.rsi<30?'Survendu':'Neutre',c:sum?.rsi>70?'r':sum?.rsi<30?'g':'b'},
-        {v:last?.action??'\u2014',l:'Signal RL actuel',h:last?.date??'\u2014',c:last?.action==='BUY'?'g':last?.action==='SELL'?'r':'b'},
-        {v:`$${sum?.ema_20?.toFixed(2)??'\u2014'}`,l:'EMA 20',h:'Moyenne mobile',c:'p'},
-        {v:`${buys}`,l:'Signaux BUY',h:`${sells} SELL \u00b7 ${signals.length-buys-sells} HOLD`,c:'g'},
+        {v:`$${sum?.price?.toFixed(2)??'—'}`,l:'Prix actuel',h:`52s: ${sum?.high_52w??'—'} / ${sum?.low_52w??'—'}`,c:''},
+        {v:`${chg>=0?'+':''}${chg?.toFixed(2)??'—'}%`,l:'Variation 1J',h:`$${sum?.change?.toFixed(2)??'—'}`,c:chg>=0?'g':'r'},
+        {v:`${sum?.rsi?.toFixed(0)??'—'}`,l:'RSI (14)',h:sum?.rsi>70?'Surachat':sum?.rsi<30?'Survendu':'Neutre',c:sum?.rsi>70?'r':sum?.rsi<30?'g':'b'},
+        {v:last?.action??'—',l:'Signal RL actuel',h:last?.date??'—',c:last?.action==='BUY'?'g':last?.action==='SELL'?'r':'b'},
+        {v:`$${sum?.ema_20?.toFixed(2)??'—'}`,l:'EMA 20',h:'Moyenne mobile',c:'p'},
+        {v:`${buys}`,l:'Signaux BUY',h:`${sells} SELL · ${signals.length-buys-sells} HOLD`,c:'g'},
       ].map((m,i)=>(
         <div className="card" key={i}>
           <span className={`mval ${m.c}`}>{m.v}</span>
@@ -250,11 +250,11 @@ function DashboardPage({ticker,period,api}){
     <div className="card" style={{marginBottom:12}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,flexWrap:'wrap',gap:8}}>
         <div>
-          <div className="card-title" style={{marginBottom:0}}>Prix r\u00e9el + Pr\u00e9diction LSTM</div>
-          <div className="card-sub">Historique {period} \u00b7 Pr\u00e9vision 14 jours</div>
+          <div className="card-title" style={{marginBottom:0}}>Prix réel + Prédiction LSTM</div>
+          <div className="card-sub">Historique {period} · Prévision 14 jours</div>
         </div>
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-          {[['#00d68f','Prix r\u00e9el'],['#3b82f6','EMA 20'],['#a78bfa','LSTM pr\u00e9dit']].map(([c,l])=>(
+          {[['#00d68f','Prix réel'],['#3b82f6','EMA 20'],['#a78bfa','LSTM prédit']].map(([c,l])=>(
             <div key={l} style={{display:'flex',alignItems:'center',gap:5,fontFamily:'var(--mono)',fontSize:9,color:'var(--t2)'}}>
               <div style={{width:16,height:2,background:c,borderRadius:1}}/>{l}
             </div>
@@ -273,9 +273,9 @@ function DashboardPage({ticker,period,api}){
           <XAxis dataKey="date" tick={{fontSize:8,fill:'#3d5269',fontFamily:'Poppins'}} tickFormatter={d=>d?.slice(5)} interval={Math.max(Math.floor(chart.length/7),1)} axisLine={false} tickLine={false}/>
           <YAxis tick={{fontSize:8,fill:'#3d5269',fontFamily:'Poppins'}} domain={['auto','auto']} tickFormatter={v=>'$'+v.toFixed(0)} axisLine={false} tickLine={false} width={50}/>
           <Tooltip content={<Tip/>}/>
-          <Area type="monotone" dataKey="close" stroke="#00d68f" fill="url(#cg)" strokeWidth={1.5} dot={false} name="Prix r\u00e9el" connectNulls={false}/>
+          <Area type="monotone" dataKey="close" stroke="#00d68f" fill="url(#cg)" strokeWidth={1.5} dot={false} name="Prix réel" connectNulls={false}/>
           <Line type="monotone" dataKey="ema20" stroke="#3b82f6" strokeWidth={1} dot={false} name="EMA 20" strokeOpacity={.5} connectNulls={false}/>
-          <Line type="monotone" dataKey="predicted" stroke="#a78bfa" strokeWidth={2} strokeDasharray="5 3" dot={false} name="Pr\u00e9dit LSTM" connectNulls={false}/>
+          <Line type="monotone" dataKey="predicted" stroke="#a78bfa" strokeWidth={2} strokeDasharray="5 3" dot={false} name="Prédit LSTM" connectNulls={false}/>
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -315,7 +315,7 @@ function DashboardPage({ticker,period,api}){
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:6}}>
         <div>
           <div className="card-title" style={{marginBottom:0}}>Signaux de l'agent RL</div>
-          <div className="card-sub">{signals.length} signaux g\u00e9n\u00e9r\u00e9s</div>
+          <div className="card-sub">{signals.length} signaux générés</div>
         </div>
         <div style={{display:'flex',gap:6}}>
           <span className="sig BUY">BUY {buys}</span>
@@ -409,16 +409,16 @@ function PerfPage({ticker,period,api}){
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
           <div style={{fontFamily:'var(--mono)',fontSize:8,color:'var(--t3)',textTransform:'uppercase',letterSpacing:1}}>COMPARAISON</div>
           <div style={{display:'flex',gap:14}}>
-            <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--green)'}}>\u25a0 RL</span>
-            <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--blue)'}}>\u25a0 Buy&Hold</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--green)'}}>■ RL</span>
+            <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--blue)'}}>■ Buy&Hold</span>
           </div>
         </div>
         {rows.map((r,i)=>(
           <div className="cr" key={i}>
             <span style={{color:'var(--t2)'}}>{r.l}</span>
             <div style={{display:'flex',gap:24}}>
-              <span style={{fontFamily:'var(--mono)',color:'var(--green)',fontWeight:500}}>{r.rl!=null?r.rl?.toFixed(2):'\u2014'}</span>
-              <span style={{fontFamily:'var(--mono)',color:'var(--blue)',fontWeight:500}}>{r.bh!=null?r.bh?.toFixed(2):'\u2014'}</span>
+              <span style={{fontFamily:'var(--mono)',color:'var(--green)',fontWeight:500}}>{r.rl!=null?r.rl?.toFixed(2):'—'}</span>
+              <span style={{fontFamily:'var(--mono)',color:'var(--blue)',fontWeight:500}}>{r.bh!=null?r.bh?.toFixed(2):'—'}</span>
             </div>
           </div>
         ))}
@@ -438,7 +438,7 @@ function PerfPage({ticker,period,api}){
     </div>
     <div className="card" style={{marginBottom:12}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}}>
-        <div className="card-title" style={{marginBottom:0}}>\u00c9volution portfolio \u2014 base $10 000</div>
+        <div className="card-title" style={{marginBottom:0}}>Évolution portfolio — base $10 000</div>
         <div style={{display:'flex',gap:14}}>
           {hasRl&&<div style={{display:'flex',alignItems:'center',gap:5,fontFamily:'var(--mono)',fontSize:9,color:'var(--t2)'}}>
             <div style={{width:16,height:2,background:'#a78bfa'}}/>Agent RL
@@ -483,7 +483,7 @@ function PerfPage({ticker,period,api}){
       </ResponsiveContainer>
       {histo.stats&&<div style={{display:'flex',gap:18,marginTop:8,fontFamily:'var(--mono)',fontSize:10,color:'var(--t2)',flexWrap:'wrap'}}>
         <span>Moyenne: <span className="g">{histo.stats.mean.toFixed(3)}%</span></span>
-        <span>{'\u03c3'}: {histo.stats.std.toFixed(3)}%</span>
+        <span>{'σ'}: {histo.stats.std.toFixed(3)}%</span>
         <span>Min: <span className="r">{histo.stats.min.toFixed(2)}%</span></span>
         <span>Max: <span className="g">{histo.stats.max.toFixed(2)}%</span></span>
         <span>Jours +: <span className="g">{histo.stats.pos}</span></span>
@@ -517,7 +517,7 @@ function DataPage({ticker,period,api}){
     <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12,flexWrap:'wrap'}}>
       <input className="fi" value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filtrer par date (ex: 2023-06)..."/>
       <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--t3)'}}>{filtered.length} lignes</span>
-      <button className="exp" onClick={exportCsv} style={{marginLeft:'auto'}}>\u2193 Export CSV</button>
+      <button className="exp" onClick={exportCsv} style={{marginLeft:'auto'}}>↓ Export CSV</button>
     </div>
     <div className="tw">
       <table className="tbl">
@@ -529,7 +529,7 @@ function DataPage({ticker,period,api}){
                 <td key={c} style={{fontFamily:'var(--mono)',fontSize:10,
                   color:c==='RSI'?(row[c]>70?'var(--red)':row[c]<30?'var(--green)':'var(--t2)')
                        :c==='MACD'?(row[c]>0?'var(--green)':'var(--red)'):'var(--t2)'}}>
-                  {fmt[c]?.(row[c])??'\u2014'}
+                  {fmt[c]?.(row[c])??'—'}
                 </td>
               ))}
             </tr>
@@ -554,21 +554,21 @@ function ModelPage({ticker,api}){
   },[ticker,api]);
   if(!api) return(<div className="banner">API hors ligne.</div>);
   if(loading) return(<div className="loader"><div className="spin"/>Chargement...</div>);
-  if(err) return(<div className="banner">\u26a0 {err}</div>);
+  if(err) return(<div className="banner">⚠ {err}</div>);
   if(!info) return(<div className="banner">Aucune info.</div>);
   const {lstm,ppo,trained_at}=info;
   const m=lstm.training||{}, rl=ppo.results||{}, bh=ppo.buy_and_hold||{};
   return(<div>
     <div style={{marginBottom:18}}>
-      <div style={{fontSize:17,fontWeight:600,marginBottom:4}}>Caract\u00e9ristiques du mod\u00e8le \u2014 {ticker}</div>
+      <div style={{fontSize:17,fontWeight:600,marginBottom:4}}>Caractéristiques du modèle — {ticker}</div>
       <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--t3)'}}>
-        Entra\u00een\u00e9 le {trained_at?.slice(0,19).replace('T',' ')||'\u2014'}
+        Entraîné le {trained_at?.slice(0,19).replace('T',' ')||'—'}
       </div>
     </div>
 
     <div className="grid g2" style={{marginBottom:14}}>
       <div className="card">
-        <div className="card-title">LSTM \u2014 Architecture</div>
+        <div className="card-title">LSTM — Architecture</div>
         <div style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--t2)',lineHeight:1.9}}>
           <div>Input  : ({lstm.seq_len}, {lstm.n_features})</div>
           {lstm.layers.map((l,i)=>(
@@ -585,13 +585,13 @@ function ModelPage({ticker,api}){
       </div>
 
       <div className="card">
-        <div className="card-title">LSTM \u2014 M\u00e9triques (test set)</div>
-        <div className="cr"><span>RMSE ($)</span><span style={{fontFamily:'var(--mono)'}} className="b">{m.rmse??'\u2014'}</span></div>
-        <div className="cr"><span>MAE ($)</span><span style={{fontFamily:'var(--mono)'}} className="b">{m.mae??'\u2014'}</span></div>
-        <div className="cr"><span>MAPE (%)</span><span style={{fontFamily:'var(--mono)'}} className="b">{m.mape??'\u2014'}</span></div>
-        <div className="cr"><span>Directional Accuracy (%)</span><span style={{fontFamily:'var(--mono)'}} className="g">{m.directional_accuracy??'\u2014'}</span></div>
-        <div className="cr"><span>Epochs (EarlyStop)</span><span style={{fontFamily:'var(--mono)'}}>{m.epochs??'\u2014'}</span></div>
-        <div className="cr"><span>\u00c9chantillons train / test</span><span style={{fontFamily:'var(--mono)'}}>{m.train_samples??'\u2014'} / {m.test_samples??'\u2014'}</span></div>
+        <div className="card-title">LSTM — Métriques (test set)</div>
+        <div className="cr"><span>RMSE ($)</span><span style={{fontFamily:'var(--mono)'}} className="b">{m.rmse??'—'}</span></div>
+        <div className="cr"><span>MAE ($)</span><span style={{fontFamily:'var(--mono)'}} className="b">{m.mae??'—'}</span></div>
+        <div className="cr"><span>MAPE (%)</span><span style={{fontFamily:'var(--mono)'}} className="b">{m.mape??'—'}</span></div>
+        <div className="cr"><span>Directional Accuracy (%)</span><span style={{fontFamily:'var(--mono)'}} className="g">{m.directional_accuracy??'—'}</span></div>
+        <div className="cr"><span>Epochs (EarlyStop)</span><span style={{fontFamily:'var(--mono)'}}>{m.epochs??'—'}</span></div>
+        <div className="cr"><span>Échantillons train / test</span><span style={{fontFamily:'var(--mono)'}}>{m.train_samples??'—'} / {m.test_samples??'—'}</span></div>
         <div style={{marginTop:10,fontFamily:'var(--mono)',fontSize:9,color:'var(--t3)'}}>
           Features : {lstm.features.join(', ')}
         </div>
@@ -600,7 +600,7 @@ function ModelPage({ticker,api}){
 
     <div className="grid g2" style={{marginBottom:14}}>
       <div className="card">
-        <div className="card-title">PPO \u2014 Hyperparam\u00e8tres</div>
+        <div className="card-title">PPO — Hyperparamètres</div>
         {Object.entries(ppo.hyperparameters).map(([k,v])=>(
           <div className="cr" key={k}>
             <span>{k}</span>
@@ -611,25 +611,25 @@ function ModelPage({ticker,api}){
       </div>
 
       <div className="card">
-        <div className="card-title">PPO \u2014 Backtest vs Buy & Hold</div>
+        <div className="card-title">PPO — Backtest vs Buy & Hold</div>
         <div className="cr"><span>Total Return (%)</span>
-          <span><span className="g" style={{fontFamily:'var(--mono)'}}>{rl.total_return??'\u2014'}</span>
+          <span><span className="g" style={{fontFamily:'var(--mono)'}}>{rl.total_return??'—'}</span>
           <span style={{color:'var(--t3)',margin:'0 8px'}}>vs</span>
-          <span className="b" style={{fontFamily:'var(--mono)'}}>{bh.total_return??'\u2014'}</span></span>
+          <span className="b" style={{fontFamily:'var(--mono)'}}>{bh.total_return??'—'}</span></span>
         </div>
         <div className="cr"><span>Sharpe Ratio</span>
-          <span><span className="g" style={{fontFamily:'var(--mono)'}}>{rl.sharpe_ratio??'\u2014'}</span>
+          <span><span className="g" style={{fontFamily:'var(--mono)'}}>{rl.sharpe_ratio??'—'}</span>
           <span style={{color:'var(--t3)',margin:'0 8px'}}>vs</span>
-          <span className="b" style={{fontFamily:'var(--mono)'}}>{bh.sharpe_ratio??'\u2014'}</span></span>
+          <span className="b" style={{fontFamily:'var(--mono)'}}>{bh.sharpe_ratio??'—'}</span></span>
         </div>
         <div className="cr"><span>Max Drawdown (%)</span>
-          <span><span className="r" style={{fontFamily:'var(--mono)'}}>{rl.max_drawdown??'\u2014'}</span>
+          <span><span className="r" style={{fontFamily:'var(--mono)'}}>{rl.max_drawdown??'—'}</span>
           <span style={{color:'var(--t3)',margin:'0 8px'}}>vs</span>
-          <span className="r" style={{fontFamily:'var(--mono)'}}>{bh.max_drawdown??'\u2014'}</span></span>
+          <span className="r" style={{fontFamily:'var(--mono)'}}>{bh.max_drawdown??'—'}</span></span>
         </div>
-        <div className="cr"><span>Win Rate (%)</span><span style={{fontFamily:'var(--mono)'}} className="g">{rl.win_rate??'\u2014'}</span></div>
-        <div className="cr"><span>Nombre de trades</span><span style={{fontFamily:'var(--mono)'}}>{rl.n_trades??'\u2014'}</span></div>
-        <div className="cr"><span>Solde final ($10 000)</span><span style={{fontFamily:'var(--mono)'}} className="g">{rl.final_balance??'\u2014'}</span></div>
+        <div className="cr"><span>Win Rate (%)</span><span style={{fontFamily:'var(--mono)'}} className="g">{rl.win_rate??'—'}</span></div>
+        <div className="cr"><span>Nombre de trades</span><span style={{fontFamily:'var(--mono)'}}>{rl.n_trades??'—'}</span></div>
+        <div className="cr"><span>Solde final ($10 000)</span><span style={{fontFamily:'var(--mono)'}} className="g">{rl.final_balance??'—'}</span></div>
       </div>
     </div>
   </div>);
@@ -788,14 +788,14 @@ function App(){
       <nav style={{flex:1,padding:'8px 0'}}>
         <div className="nav-sect">Navigation</div>
         {PAGES.map(p=>(<div key={p.id} className={`nav-btn${page===p.id?' on':''}`} onClick={()=>setPage(p.id)}><span className="nav-icon"><Icon name={p.id}/></span><span>{p.label}</span></div>))}
-        <div className="nav-sect" style={{marginTop:12}}>Actifs entra\u00een\u00e9s</div>
+        <div className="nav-sect" style={{marginTop:12}}>Actifs entraînés</div>
         {tickers.length===0&&<div style={{padding:'6px 14px',fontFamily:'var(--mono)',fontSize:9,color:'var(--t3)'}}>Aucun ticker disponible</div>}
         {tickers.map(t=>(<div key={t.s} className={`nav-btn${ticker===t.s?' on':''}`} onClick={()=>setTicker(t.s)}><span className="nav-icon"><Icon name="stock" size={13}/></span><span>{t.n}</span><span className="nav-tag">{t.t}</span></div>))}
       </nav>
     </aside>
     <main className="main">
       <div className="topbar">
-        <div className="tb-title">{cur?.f||'\u2014'} <span style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--t2)',fontWeight:400}}>({ticker||'\u2014'})</span></div>
+        <div className="tb-title">{cur?.f||'—'} <span style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--t2)',fontWeight:400}}>({ticker||'—'})</span></div>
         <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
           {tickers.map(t=>(<div key={t.s} className={`tb-t${ticker===t.s?' on':''}`} onClick={()=>setTicker(t.s)}>{t.n}<span className="tb-tsub">{t.t}</span></div>))}
         </div>
@@ -805,7 +805,7 @@ function App(){
       </div>
       <div className="content">
         {page==='guide'     &&<GuidePage api={api}/>}
-        {!ticker&&page!=='guide'&&<div className="banner">Aucun ticker entra\u00een\u00e9 disponible. Lance l'entra\u00eenement.</div>}
+        {!ticker&&page!=='guide'&&<div className="banner">Aucun ticker entraîné disponible. Lance l'entraînement.</div>}
         {ticker&&page==='dashboard' &&<DashboardPage ticker={ticker} period={period} api={api}/>}
         {ticker&&page==='live'      &&<LivePage ticker={ticker} api={api}/>}
         {ticker&&page==='model'     &&<ModelPage ticker={ticker} api={api}/>}

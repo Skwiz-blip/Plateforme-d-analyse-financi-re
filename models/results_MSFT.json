@@ -1,13 +1,13 @@
 {
   "ticker": "MSFT",
-  "timestamp": "2026-06-12T15:29:22.145454",
+  "timestamp": "2026-06-12T22:52:20.173287",
   "rl_agent": {
-    "total_return": 0.0,
-    "sharpe_ratio": 0.0,
-    "max_drawdown": 0.0,
+    "total_return": 2.52,
+    "sharpe_ratio": 2.5271,
+    "max_drawdown": -0.43,
     "win_rate": 0.0,
-    "n_trades": 0,
-    "final_balance": 10000.0
+    "n_trades": 1,
+    "final_balance": 10251.7
   },
   "buy_and_hold": {
     "total_return": 42.89,
